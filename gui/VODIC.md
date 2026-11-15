@@ -1793,7 +1793,7 @@ public partial class MainView : UserControl
 
 - **pravi laptop**: kursor, touchpad klik na dugmad i izgled na 1920x1080 (strelica je velika 20 piksela, pa može delovati sitno)
 - *Restartuj* pa *Da* (isti poziv kao isključenje, samo `systemctl reboot`) i *Izađi u konzolu* (isti izlaz kao `Ctrl+Alt+Q`, koji je proveren)
-- `systemctl` radi jer GUI trenutno radi kao `root`; kad pređemo na običan nalog trebaće polkit pravilo
+- `systemctl` (restart i isključenje) radi jer polkit to dozvoljava nalogu `cloudandbear` (poglavlje o pokretanju pri dizanju)
 - na Windowsu (`dotnet run`) nema `systemctl`: klik na *Da* ispiše grešku umesto da išta isključi
 ## Izgled ekrana, korak 4: Mreža, Kontejneri i Kubernetes
 
@@ -1825,8 +1825,8 @@ Izmenjeni fajlovi:
 ### Kako radi i na šta paziti
 
 - **Mreža**: `nmcli device wifi connect "ime" password "lozinka"`. Pre unosa nove lozinke obriše se stari profil iste mreže, jer ga nmcli inače ponovo koristi i javlja `802-11-wireless-security.key-mgmt: property is missing` (to se desilo u VM-u posle pogrešne lozinke). Neuspešan pokušaj ne ostavlja profil. Prazna lozinka znači "koristi sačuvanu vezu". Lozinka se predaje nmcli-ju kao argument pa je kratko vidljiva u `ps`; za uređaj sa jednim korisnikom to je prihvatljivo.
-- **Kontejneri**: bez `docker` programa; GUI radi kao `root`, pa čita soket. Spisak se osvežava na tri sekunde dok je odeljak otvoren. Ako Docker ne radi, piše to umesto praznog spiska.
-- **Kubernetes**: kontekst se zadaje po pozivu (`--context`), pa se kubeconfig **nikad ne menja**. Kubeconfig se traži: `KUBECONFIG`, pa `/root/.kube/config`, pa `/home/*/.kube/config` (GUI radi kao `root`, a tvoj fajl je u tvom kućnom folderu). Osvežava se na deset sekundi.
+- **Kontejneri**: bez `docker` programa; nalog `cloudandbear` je u grupi `docker`, pa čita soket. Spisak se osvežava na tri sekunde dok je odeljak otvoren. Ako Docker ne radi, piše to umesto praznog spiska.
+- **Kubernetes**: kontekst se zadaje po pozivu (`--context`), pa se kubeconfig **nikad ne menja**. Kubeconfig se traži: `KUBECONFIG`, pa `/var/lib/cloudandbear/kubeconfig`, pa `~/.kube/config`, pa `/home/*/.kube/config` (nalog bez prijave ne vidi tvoj kućni folder, pa se fajl stavlja u `/var/lib/cloudandbear`). Osvežava se na deset sekundi.
 
 ### Šta je provereno (VM, 2026-11-15)
 
@@ -1892,8 +1892,8 @@ Fajl servisa je `gui\deploy\cloudandbear-gui.service`:
 ```ini
 [Unit]
 Description=CloudAndBear GUI (Avalonia, DRM)
-# uzima tty1 od konzolne prijave (getty)
-After=systemd-user-sessions.service systemd-logind.service getty@tty1.service
+# uzima tty1 od konzolne prijave (getty); servis radi kao nalog cloudandbear (vidi cloudandbear.sysusers), ne kao root
+After=systemd-user-sessions.service systemd-logind.service systemd-sysusers.service getty@tty1.service
 Conflicts=getty@tty1.service
 ConditionPathExists=/dev/tty0
 # konzolna prijava se vraca kad GUI cisto izadje (Ctrl+Alt+Q), kad se zaustavi, i kad padne vise puta zaredom
@@ -1903,7 +1903,15 @@ StartLimitIntervalSec=30
 StartLimitBurst=3
 
 [Service]
-Environment=HOME=/root
+User=cloudandbear
+Group=cloudandbear
+# PAM otvara logind sesiju na tty1: zato nalog dobija pristup ekranu i tastaturi, a restart i iskljucenje prolaze kroz polkit
+PAMName=cloudandbear-gui
+UtmpIdentifier=tty1
+UtmpMode=user
+# /var/lib/cloudandbear: izabrani raspored tastature, kubeconfig; systemd ga pravi i daje nalogu
+StateDirectory=cloudandbear
+Environment=HOME=/var/lib/cloudandbear
 ExecStart=/opt/cloudandbear-gui/CloudAndBear.Desktop --drm
 # jedan pad se ponovo pokrece posle dve sekunde
 Restart=on-failure
@@ -1915,8 +1923,8 @@ TTYPath=/dev/tty1
 TTYReset=yes
 TTYVHangup=yes
 TTYVTDisallocate=yes
-# posle izlaza ili pada: vrati tastaturu terminala (aplikacija je gasi dok radi)
-ExecStopPost=-/usr/bin/kbd_mode -u -C /dev/tty1
+# posle izlaza ili pada: vrati tastaturu terminala (aplikacija je gasi dok radi); "+" = kao root, jer nalog ne sme to posle prestanka sesije
+ExecStopPost=+-/usr/bin/kbd_mode -u -C /dev/tty1
 
 [Install]
 WantedBy=multi-user.target
@@ -1927,51 +1935,75 @@ WantedBy=multi-user.target
 - `Conflicts=getty@tty1.service` i `After=...getty@tty1.service`: servis uzima `tty1`, a konzolna prijava se gasi.
 - `OnSuccess=` / `OnFailure=getty@tty1.service`: konzolna prijava se **vraća** kad GUI čisto izađe (`Ctrl+Alt+Q`), kad ga zaustaviš (`systemctl stop`) i kad padne tri puta u 30 sekundi.
 - `Restart=on-failure`: **jedan** pad se ponovo pokreće posle 2 s, jer pad ne sme da te ostavi bez ekrana.
-- `ExecStopPost=kbd_mode`: vraća tastaturu terminala (aplikacija je gasi dok radi), i posle izlaza i posle pada.
-- GUI trenutno radi kao **root** (treba mu pristup `/dev/input`, `/dev/dri` i terminalu). Bezbednije je kasnije dati poseban nalog sa grupama `video`, `input` i `render`.
+- `ExecStopPost=+-kbd_mode`: vraća tastaturu terminala (aplikacija je gasi dok radi), i posle izlaza i posle pada; `+` ga izvršava kao root, a `-` ignoriše grešku.
+- `User=cloudandbear`: GUI **ne radi kao root**, nego kao poseban nalog (vidi dole).
+- `StateDirectory=cloudandbear`: folder `/var/lib/cloudandbear` pripada nalogu; tu su izabrani raspored tastature i `kubeconfig`.
+
+### Nalog bez root-a
+
+Nalog `cloudandbear` nema lozinku ni ljusku za prijavu. Nastaje iz `gui\deploy\cloudandbear.sysusers` (grupe `video`, `input`, `render` i `docker`), a servis mu daje sesiju i prava:
+
+| Šta GUI traži | Čime se rešava |
+|---|---|
+| ekran (`/dev/dri`) | grupa `video` i sesija na `tty1` (`PAMName=cloudandbear-gui`, `gui\deploy\cloudandbear-gui.pam`); prvi program koji otvori ekran postaje njegov gospodar, pa root ne treba |
+| tastatura i miš (`/dev/input`) | grupa `input` |
+| gašenje tastera u konzoli (`KDSKBMODE`) | terminal `tty1` je kontrolni terminal servisa (`StandardInput=tty`); aplikacija sada otvara `/dev/tty` pre `/dev/tty0` |
+| restart i isključenje | polkit: aktivna sesija na `tty1` to sme, a `gui\deploy\cloudandbear-gui.rules` to dozvoljava i bez toga |
+| Wi-Fi (`nmcli`) | isto pravilo za `org.freedesktop.NetworkManager.*` |
+| Docker | grupa `docker` (to je u praksi pravo root-a nad Dockerom) |
+| Kubernetes | nalog ne vidi tvoj kućni folder, pa kubeconfig ide u `/var/lib/cloudandbear/kubeconfig` (vidi dole) |
+
+Kubeconfig se stavlja jednom, na laptopu:
+
+```bash
+sudo install -m 600 -o cloudandbear -g cloudandbear ~/.kube/config /var/lib/cloudandbear/kubeconfig
+```
 
 ### Instalacija na laptop
 
-Iz foldera `gui` (promenljiva `$L` je kao i ranije):
+Iz foldera `gui` (promenljiva `L` je kao i ranije). Skripta `gui\deploy\install.sh` sve postavlja: program u `/opt/cloudandbear-gui` (vlasnik root), servis, nalog, PAM i polkit pravila, pa pokreće servis. Isto je i za prvu instalaciju i za svaku sledeću objavu:
 
 ```powershell
 cd "D:\CloudAndBear Linux\CloudAndBearLinux\gui\CloudAndBear.Desktop"
 dotnet publish -c Release -r linux-x64 --self-contained -o ..\publish
 cd ..
 $L = "marokos@192.168.1.5"
-ssh $L "rm -rf ~/cab-gui"
+ssh $L "rm -rf ~/cab-gui ~/deploy"
 scp -r publish "${L}:cab-gui"
-scp deploy\cloudandbear-gui.service "${L}:"
-ssh -t $L "sudo rm -rf /opt/cloudandbear-gui && sudo cp -r ~/cab-gui /opt/cloudandbear-gui && sudo chmod +x /opt/cloudandbear-gui/CloudAndBear.Desktop && sudo cp ~/cloudandbear-gui.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl start cloudandbear-gui"
+scp -r deploy "${L}:deploy"
+ssh -t $L "sudo bash ~/deploy/install.sh"
 ```
 
-GUI se odmah pojavljuje na ekranu laptopa. `Ctrl+Alt+Q` ga zatvara i vraća prijavu. Za dizanje pri svakom paljenju:
+GUI se odmah pojavljuje na ekranu laptopa, kao nalog `cloudandbear` (`install.sh` na kraju ispisuje vlasnika procesa). `Ctrl+Alt+Q` ga zatvara i vraća prijavu. Servis je uključen za dizanje pri svakom paljenju (`systemctl enable` je u skripti). Za ručno pokretanje kao ranije (`sudo ... --drm` preko SSH-a) prvo zaustavi servis (`sudo systemctl stop cloudandbear-gui`), jer samo jedan program sme da drži ekran.
 
-```powershell
-ssh -t $L "sudo systemctl enable cloudandbear-gui"
-```
-
-Za razvoj (ponovna objava dok je servis uključen): `sudo systemctl restart cloudandbear-gui` posle kopiranja u `/opt/cloudandbear-gui`. Za ručno pokretanje kao ranije prvo zaustavi servis (`sudo systemctl stop cloudandbear-gui`), jer samo jedan program sme da drži ekran.
+Nova slika (ISO) ima sve ovo već u sebi: nalog se pravi u hooku `0200`, a ostali fajlovi dolaze iz `gui\deploy` preko `build.sh`.
 
 ### Ako nešto pođe naopako
 
 - laptop se podiže bez prijave i GUI ne radi: preko SSH-a `sudo systemctl disable --now cloudandbear-gui`; konzolna prijava se vraća sama
 - nema ni SSH-a: pri dizanju u GRUB-u pritisni `e`, na red `linux` dodaj ` systemd.mask=cloudandbear-gui.service` i `F10`
 - tastatura konzole ne radi posle pada: `sudo kbd_mode -u -C /dev/tty0` iz SSH-a
+- ekran ostaje crn, a servis je `failed` (`status=203/EXEC`): program nije čitljiv nalogu `cloudandbear`; `sudo bash ~/deploy/install.sh` ponovo postavlja prava
+- hoćeš GUI opet kao root (samo za otkrivanje greške): u `/etc/systemd/system/cloudandbear-gui.service` stavi `User=root`, `daemon-reload` i `restart`
 
 ### Šta je provereno (VM, 2026-11-15)
 
-- `systemctl start`: GUI se pojavljuje, `getty@tty1` se gasi
-- `Esc` **ne** izlazi, `Ctrl+Alt+Q` izlazi: servis postaje `inactive`, vraća se prijava na `tty1`, tastatura radi
-- jedan pad (`SIGKILL`): GUI se pokreće iznova (`NRestarts=1`); više padova zaredom: servis `failed`, vraća se konzola
-- `systemctl stop` vraća konzolnu prijavu
-- `systemctl enable` prolazi bez greške
+Live sistem u VM-u, servis instaliran skriptom `install.sh` (kao na laptopu):
+
+- nalog `cloudandbear` nastaje sa grupama `video`, `input`, `render`, `docker`; GUI se pojavljuje na ekranu, proces je `cloudandbear`, logind vidi sesiju na `seat0`/`tty1`
+- tastatura i miš rade; tasteri ne idu u konzolu (`kbd_mode` pokazuje da je terminal ugašen), a posle izlaza je opet `Unicode (UTF-8)`
+- raspored tastature se pamti u `/var/lib/cloudandbear/layout` kao nalog `cloudandbear`
+- **Mreža**: skeniranje i povezivanje na Wi-Fi (virtuelni `hwsim`) prolaze bez root-a; **Kontejneri**: spisak preko Docker soketa; **Kubernetes**: kubeconfig iz `/var/lib/cloudandbear/kubeconfig`
+- **Sistem** → *Isključi* → *Da*: VM se gasi (polkit)
+- `Ctrl+Alt+Q` vraća prijavu na `tty1`; `SIGKILL` procesa: GUI se pokreće iznova kao isti nalog
+- prvi pokušaj je pao (`203/EXEC`) jer je folder `/opt/cloudandbear-gui` bio samo za vlasnika (`scp` sa Windowsa); `install.sh` sada postavlja prava
 
 ### Šta nije provereno
 
-- **pokretanje pri dizanju** (`enable` pa restart): live sistem u VM-u se svaki put diže iz ISO-a, pa instalacija ne ostaje; prvi pravi test je laptop
-- redosled sa mrežom i prijavom pri prvom dizanju (GUI ne zavisi od mreže)
-
+- **pravi laptop**: DRM sa `i915` bez root-a (u VM-u je `vmwgfx`), `/dev/input` na pravoj tastaturi i touchpadu
+- ponašanje posle `enable` i restarta (live sistem se u VM-u svaki put diže iz ISO-a)
+- ISO sa nalogom iz hooka `0200`: čeka sledeću izgradnju
+- restart (*Restartuj* → *Da*): isti polkit kao isključenje, ali nije posebno kliknut
 ## Ako ne radi
 
 | Šta vidiš | Šta znači / šta raditi |
@@ -1989,6 +2021,5 @@ Za razvoj (ponovna objava dok je servis uključen): `sudo systemctl restart clou
 ## Sledeći koraci
 
 1. Tastatura i miš priključeni u hodu.
-2. Običan nalog umesto `root`-a za GUI (polkit za restart i isključenje; grupa `docker` za Docker; kubeconfig tog korisnika).
-3. Paket `cloudandbear-desktop` (`.deb`) sa zavisnostima iz poglavlja 3, pa u sopstveni apt repozitorijum i u sliku.
-4. Nova slika (pripremljeno u `debian/` i `iso.yml`, čeka izgradnju na GitHub-u): GUI i servis ugrađeni (`/opt/cloudandbear-gui`, servis uključen), 9 biblioteka i `alsa-utils`, preseed instalatera (ime `cloudandbear`, `Europe/Belgrade`, korisnik u `sudo` i `docker`, apt izvori), konzolni font sa `č ć š đ ž`, CloudAndBear naslov i pozadina menija za dizanje, GRUB ime `CloudAndBear`; `nmcli`, `docker` i `kubectl` već su u slici. Tu su i PowerShell (Microsoftov apt repozitorijum) i oh-my-posh sa tvojom temom (`minimal-marko`, u konzoli varijanta bez ikona) i profilom u `/etc/skel`; to je dodatak koji ne prekida izgradnju kad preuzimanje ne uspe, pa u logu treba potražiti `UPOZORENJE [0300 powershell]`. Posle izgradnje proveriti u VM-u, pa na laptopu.
+2. Paket `cloudandbear-desktop` (`.deb`) sa zavisnostima iz poglavlja 3, pa u sopstveni apt repozitorijum i u sliku.
+3. Nova slika (pripremljeno u `debian/` i `iso.yml`, čeka izgradnju na GitHub-u): GUI i servis ugrađeni (`/opt/cloudandbear-gui`, servis uključen), 9 biblioteka i `alsa-utils`, preseed instalatera (ime `cloudandbear`, `Europe/Belgrade`, korisnik u `sudo` i `docker`, apt izvori), konzolni font sa `č ć š đ ž`, CloudAndBear naslov i pozadina menija za dizanje, GRUB ime `CloudAndBear`; `nmcli`, `docker` i `kubectl` već su u slici. Tu su i PowerShell (Microsoftov apt repozitorijum) i oh-my-posh sa tvojom temom (`minimal-marko`, u konzoli varijanta bez ikona) i profilom u `/etc/skel`; to je dodatak koji ne prekida izgradnju kad preuzimanje ne uspe, pa u logu treba potražiti `UPOZORENJE [0300 powershell]`. Posle izgradnje proveriti u VM-u, pa na laptopu.

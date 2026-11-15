@@ -47,9 +47,14 @@ if [ "${CHECK_ONLY:-0}" != "1" ]; then
   echo "== GUI (CloudAndBear.Desktop) u sliku"
   [ -f "$gui/publish/CloudAndBear.Desktop" ] || { echo "NEMA $gui/publish/CloudAndBear.Desktop: prvo dotnet publish (vidi build.ps1 ili workflow)"; exit 1; }
   [ -f "$gui/deploy/cloudandbear-gui.service" ] || { echo "NEMA $gui/deploy/cloudandbear-gui.service"; exit 1; }
-  mkdir -p config/includes.chroot/opt/cloudandbear-gui config/includes.chroot/etc/systemd/system
+  mkdir -p config/includes.chroot/opt/cloudandbear-gui
   cp -a "$gui/publish/." config/includes.chroot/opt/cloudandbear-gui/
-  sed 's/\r$//' "$gui/deploy/cloudandbear-gui.service" > config/includes.chroot/etc/systemd/system/cloudandbear-gui.service
+  # servis, nalog bez prijave (sysusers), PAM i polkit pravila: GUI radi kao nalog cloudandbear, ne kao root (isti fajlovi kao u gui/deploy/install.sh)
+  put() { [ -f "$gui/deploy/$1" ] || { echo "NEMA $gui/deploy/$1"; exit 1; }; mkdir -p "$(dirname "config/includes.chroot/$2")"; sed 's/\r$//' "$gui/deploy/$1" > "config/includes.chroot/$2"; }
+  put cloudandbear-gui.service etc/systemd/system/cloudandbear-gui.service
+  put cloudandbear.sysusers usr/lib/sysusers.d/cloudandbear.conf
+  put cloudandbear-gui.pam etc/pam.d/cloudandbear-gui
+  put cloudandbear-gui.rules etc/polkit-1/rules.d/49-cloudandbear-gui.rules
   du -sh config/includes.chroot/opt/cloudandbear-gui
 fi
 
@@ -71,6 +76,8 @@ iso=$(ls ./*.iso 2> /dev/null | head -n 1)
 echo "== provera: GUI, servis i ispravke u slici"
 [ -f chroot/opt/cloudandbear-gui/CloudAndBear.Desktop ] || { echo "GUI nije u slici"; exit 1; }
 [ -L chroot/etc/systemd/system/multi-user.target.wants/cloudandbear-gui.service ] || { echo "servis cloudandbear-gui nije uključen"; exit 1; }
+grep -q '^cloudandbear:' chroot/etc/passwd || { echo "nalog cloudandbear ne postoji u slici (hook 0200 nije izvršio systemd-sysusers)"; exit 1; }
+[ -f chroot/etc/pam.d/cloudandbear-gui ] && [ -f chroot/etc/polkit-1/rules.d/49-cloudandbear-gui.rules ] || { echo "nema PAM ili polkit pravila za GUI u slici"; exit 1; }
 [ -f chroot/usr/share/cloudandbear/debian.sources ] || { echo "nema debian.sources u slici"; exit 1; }
 grep -q '^CODESET="Lat2"' chroot/etc/default/console-setup || { echo "console-setup nije naš (Lat2)"; exit 1; }
 [ -f chroot/etc/default/grub.d/cloudandbear.cfg ] || { echo "nema grub.d/cloudandbear.cfg"; exit 1; }

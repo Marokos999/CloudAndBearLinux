@@ -58,21 +58,32 @@ public sealed class KeyboardInputBackend : IInputBackend
     private static SafeFileHandle? _tty;
     private static int _oldMode;
 
-    // virtuelni terminal prestaje da obrađuje tastere (inače bi isli i u shell iza GUI-ja); pri izlasku se vraća
+    // virtuelni terminal prestaje da obrađuje tastere (inače bi isli i u shell iza GUI-ja); pri izlasku se vraća.
+    // Običan nalog sme to samo na svom (kontrolnom) terminalu, pa se prvo proba /dev/tty (servis ga dobija na tty1),
+    // a tek onda /dev/tty0, koji može samo root.
     private static void SilenceTerminal()
     {
-        try
+        foreach (var path in new[] { "/dev/tty", "/dev/tty0" })
         {
-            _tty = File.OpenHandle("/dev/tty0", FileMode.Open, FileAccess.ReadWrite);
-            var h = _tty.DangerousGetHandle();
-            if (ioctl(h, KDGKBMODE, ref _oldMode) != 0 || ioctl(h, KDSKBMODE, (IntPtr)K_OFF) != 0) return;
-            AppDomain.CurrentDomain.ProcessExit += (_, _) => RestoreTerminal();
-            AppDomain.CurrentDomain.UnhandledException += (_, _) => RestoreTerminal();
+            try
+            {
+                var tty = File.OpenHandle(path, FileMode.Open, FileAccess.ReadWrite);
+                var h = tty.DangerousGetHandle();
+                if (ioctl(h, KDGKBMODE, ref _oldMode) == 0 && ioctl(h, KDSKBMODE, (IntPtr)K_OFF) == 0)
+                {
+                    _tty = tty;
+                    AppDomain.CurrentDomain.ProcessExit += (_, _) => RestoreTerminal();
+                    AppDomain.CurrentDomain.UnhandledException += (_, _) => RestoreTerminal();
+                    return;
+                }
+                tty.Dispose();   // nije virtuelni terminal (npr. ssh -t) ili nema prava: sledeći pokušaj
+            }
+            catch
+            {
+                // nema tog uređaja ili nema prava: sledeći pokušaj
+            }
         }
-        catch
-        {
-            // nema /dev/tty0 ili nema prava: tasteri će i dalje ići u konzolu
-        }
+        // nijedan nije uspeo: tasteri će i dalje ići u konzolu
     }
 
     private static void RestoreTerminal()

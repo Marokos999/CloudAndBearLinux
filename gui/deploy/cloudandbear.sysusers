@@ -1,0 +1,11 @@
+# CloudAndBear GUI: nalog bez prijave i lozinke koji pokreće GUI (servis cloudandbear-gui); ide u /usr/lib/sysusers.d/cloudandbear.conf
+# video i render: ekran (DRM), input: tastatura i miš, docker: odeljak Kontejneri
+g video -
+g input -
+g render -
+g docker -
+u cloudandbear - "CloudAndBear GUI" /var/lib/cloudandbear /usr/sbin/nologin
+m cloudandbear video
+m cloudandbear input
+m cloudandbear render
+m cloudandbear docker

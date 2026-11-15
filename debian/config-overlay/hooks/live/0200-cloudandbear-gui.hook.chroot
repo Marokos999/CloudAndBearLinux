@@ -6,8 +6,17 @@ set -e
 [ -f /opt/cloudandbear-gui/CloudAndBear.Desktop ] || { echo "nema /opt/cloudandbear-gui/CloudAndBear.Desktop: build.sh ga nije kopirao u includes.chroot"; exit 1; }
 [ -f /etc/systemd/system/cloudandbear-gui.service ] || { echo "nema cloudandbear-gui.service u includes.chroot"; exit 1; }
 
-# Windows ne čuva pravo izvršavanja, pa se vraća (na Linuxu je već tu)
+# GUI radi kao običan nalog (cloudandbear): program pripada root-u, a svi smeju da ga čitaju i izvršavaju.
+# Prava izvornog foldera (Windows) ne pomažu: foldere otvara samo vlasnik, a izvršno pravo se gubi.
+chown -R root:root /opt/cloudandbear-gui
+chmod -R a+rX,go-w /opt/cloudandbear-gui
 chmod 755 /opt/cloudandbear-gui/CloudAndBear.Desktop
+
+# nalog cloudandbear (bez prijave i lozinke, u grupama video, input, render i docker): sysusers se na pokrenutom sistemu ne izvršava
+# samo (ConditionNeedsUpdate), pa se nalog pravi ovde, u slici; instalacija na disk ga prenosi sa slikom
+[ -f /usr/lib/sysusers.d/cloudandbear.conf ] || { echo "nema /usr/lib/sysusers.d/cloudandbear.conf u includes.chroot"; exit 1; }
+systemd-sysusers /usr/lib/sysusers.d/cloudandbear.conf
+getent passwd cloudandbear
 
 # servis zauzima tty1 umesto konzolne prijave, a prijava se vraća pri izlasku (Ctrl+Alt+Q) i pri padu
 systemctl enable cloudandbear-gui.service

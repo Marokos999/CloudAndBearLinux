@@ -10,7 +10,8 @@ public sealed record NodeInfo(string Name, string Status, string Roles, string V
 // Kubernetes preko kubectl-a, samo čitanje. Kontekst se zadaje po pozivu (--context), pa se kubeconfig nikad ne menja.
 public static class Kube
 {
-    // GUI radi kao root, a kubeconfig je obično u kućnom folderu korisnika: traži se KUBECONFIG, /root, pa /home/*
+    // Traži se: KUBECONFIG, pa kubeconfig u stanju aplikacije (/var/lib/cloudandbear/kubeconfig, tamo ga stavlja onaj ko
+    // podešava GUI, jer nalog bez prijave ne vidi tuđe kućne foldere), pa ~/.kube/config, pa /home/*/.kube/config
     public static string? KubeconfigPath { get; } = FindKubeconfig();
 
     private static string? FindKubeconfig()
@@ -18,7 +19,12 @@ public static class Kube
         var fromEnv = Environment.GetEnvironmentVariable("KUBECONFIG")?.Split(Path.PathSeparator).FirstOrDefault(File.Exists);
         if (fromEnv is not null) return fromEnv;
 
-        var candidates = new List<string> { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".kube", "config") };
+        var state = Environment.GetEnvironmentVariable("STATE_DIRECTORY")?.Split(':')[0] ?? "/var/lib/cloudandbear";
+        var candidates = new List<string>
+        {
+            Path.Combine(state, "kubeconfig"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".kube", "config"),
+        };
         if (Directory.Exists("/home"))
             candidates.AddRange(Directory.GetDirectories("/home").Order().Select(h => Path.Combine(h, ".kube", "config")));
         return candidates.FirstOrDefault(File.Exists);

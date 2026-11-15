@@ -1,0 +1,3 @@
+# build.sh i sve u config-overlay ide u Debian kontejner: uvek LF, i kad se repo preuzme na Windowsu
+*.sh text eol=lf
+config-overlay/** text eol=lf
