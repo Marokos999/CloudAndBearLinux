@@ -9,34 +9,48 @@
 
   <!-- koja stranica (ViewModel) se crta kojim pogledom (View) -->
   <UserControl.DataTemplates>
+    <DataTemplate DataType="vm:DashboardViewModel">
+      <views:DashboardView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:SystemViewModel">
+      <views:SystemView />
+    </DataTemplate>
     <DataTemplate DataType="vm:PlaceholderViewModel">
       <views:PlaceholderView />
     </DataTemplate>
   </UserControl.DataTemplates>
 
-  <DockPanel Background="#101820">
+  <Grid>
+    <DockPanel Background="#101820">
 
-    <!-- gornja traka -->
-    <Border DockPanel.Dock="Top" Height="56" Padding="24,0" Background="#0b1118">
-      <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Text="C&amp;B" FontSize="26" FontWeight="SemiBold" Foreground="#9ecbff" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="1" Text="{Binding Clock}" FontSize="22" Foreground="#e0e0e0" VerticalAlignment="Center" />
-      </Grid>
-    </Border>
+      <!-- gornja traka -->
+      <Border DockPanel.Dock="Top" Height="56" Padding="24,0" Background="#0b1118">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="C&amp;B" FontSize="26" FontWeight="SemiBold" Foreground="#9ecbff" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="{Binding Clock}" FontSize="22" Foreground="#e0e0e0" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
 
-    <!-- meni levo -->
-    <Border DockPanel.Dock="Left" Width="240" Background="#0d141c">
-      <ListBox ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}" Margin="12" Background="Transparent">
-        <ListBox.ItemTemplate>
-          <DataTemplate x:DataType="vm:NavItem">
-            <TextBlock Text="{Binding Title}" FontSize="18" Padding="8,6" />
-          </DataTemplate>
-        </ListBox.ItemTemplate>
-      </ListBox>
-    </Border>
+      <!-- meni levo -->
+      <Border DockPanel.Dock="Left" Width="240" Background="#0d141c">
+        <ListBox ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}" Margin="12" Background="Transparent">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:NavItem">
+              <TextBlock Text="{Binding Title}" FontSize="18" Padding="8,6" />
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
 
-    <!-- sadržaj izabrane stranice -->
-    <ContentControl Content="{Binding CurrentPage}" Margin="32" />
+      <!-- sadržaj izabrane stranice -->
+      <ContentControl Content="{Binding CurrentPage}" Margin="32" />
 
-  </DockPanel>
+    </DockPanel>
+
+    <!-- kursor miša: Avalonia ga na uređaju ne crta -->
+    <Canvas IsHitTestVisible="False">
+      <Path x:Name="MouseCursor" IsVisible="False" Fill="White" Stroke="Black" StrokeThickness="1"
+            Data="M0,0 L0,17 L4.5,13 L7.5,20 L10,19 L7,12 L12.5,12 Z" />
+    </Canvas>
+  </Grid>
 </UserControl>

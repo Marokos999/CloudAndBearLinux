@@ -635,6 +635,7 @@ Slušanje ide na `TopLevel` jer na uređaju fokus ne mora biti na tvom pogledu.
 - dok GUI radi, `Alt+F1..F6` (prebacivanje terminala) i `Ctrl+Alt+Del` ne rade (terminal u `K_OFF`); spas je SSH
 - ako se aplikacija ubije sa `SIGKILL` ili sruši, tastatura konzole ostaje isključena: iz SSH-a `sudo kbd_mode -u -C /dev/tty0` (nije probano)
 - `Alt`/`Ctrl` kombinacije ne daju tekst (namerno); `Tab` i `Enter` ne šalju tekst, samo `KeyDown`
+
 ## Miš i touchpad (sopstvena obrada preko libinput-a)
 
 Prvo pokretanje na laptopu je pokazalo da **miš i touchpad ne rade**. Uzrok je u Avaloniji: njen DRM unos uvozi iz `libinput` samo *apsolutno* pozicioniranje (ekrani osetljivi na dodir), dugmad i skrol, a funkcije za *relativno* pomeranje (`libinput_event_pointer_get_dx` / `_dy`), kojim rade miš i touchpad, nema. Provereno: u VM-u sam napravila virtuelni miš (`/dev/uinput`), `libinput` u aplikaciji je čitao njegove događaje, a Avalonia ih nikad nije prosledila.
@@ -857,6 +858,7 @@ U konstruktor, iznad `AttachedToVisualTree`:
 - desni i srednji taster, horizontalni skrol
 - brzina kursora (podrazumevano ubrzanje `libinput`-a), prirodni skrol
 - miš priključen u hodu (uređaji se čitaju samo pri pokretanju)
+
 ## Izgled ekrana, korak 1: okvir (traka, meni, navigacija)
 
 Odluke (Marko, 2026-11-15): **jedna aplikacija preko celog ekrana** (traka gore, meni levo, sadržaj desno) i **kontrolna tabla kao početni ekran**. Prvi korak je samo okvir: traka sa nazivom i satom, meni sa pet odeljaka, i sadržaj izabranog odeljka. Svi odeljci su za sada prazni, a kontrolna tabla sa pravim podacima je korak 2.
@@ -877,6 +879,7 @@ CloudAndBear.Desktop\
     ├── PlaceholderView.axaml
     └── PlaceholderView.axaml.cs
 ```
+
 ### `ViewModels\ViewModelBase.cs`
 
 ```csharp
@@ -901,7 +904,8 @@ public abstract class ViewModelBase : INotifyPropertyChanged
         return true;
     }
 }
-```n
+```
+
 ### `ViewModels\NavItem.cs`
 
 ```csharp
@@ -909,7 +913,8 @@ namespace CloudAndBear.Desktop.ViewModels;
 
 // stavka menija: naziv i stranica koja se prikazuje kad je izabrana
 public sealed record NavItem(string Title, ViewModelBase Page);
-```n
+```
+
 ### `ViewModels\PlaceholderViewModel.cs`
 
 ```csharp
@@ -920,7 +925,8 @@ public sealed class PlaceholderViewModel(string title) : ViewModelBase
 {
     public string Title { get; } = title;
 }
-```n
+```
+
 ### `ViewModels\MainViewModel.cs`
 
 ```csharp
@@ -975,7 +981,8 @@ public sealed class MainViewModel : ViewModelBase
         Selected = Items[index];
     }
 }
-```n
+```
+
 ### `Views\PlaceholderView.axaml`
 
 ```xml
@@ -989,7 +996,8 @@ public sealed class MainViewModel : ViewModelBase
     <TextBlock Text="Ovaj odeljak još nije napravljen." FontSize="18" Foreground="#8a99a8" />
   </StackPanel>
 </UserControl>
-```n
+```
+
 ### `Views\PlaceholderView.axaml.cs`
 
 ```csharp
@@ -1001,7 +1009,8 @@ public partial class PlaceholderView : UserControl
 {
     public PlaceholderView() => InitializeComponent();
 }
-```n
+```
+
 ### `MainView.axaml`
 
 ```xml
@@ -1047,7 +1056,8 @@ public partial class PlaceholderView : UserControl
 
   </DockPanel>
 </UserControl>
-```n
+```
+
 ### `MainView.axaml.cs`
 
 ```csharp
@@ -1083,7 +1093,7 @@ public partial class MainView : UserControl
         };
     }
 }
-```n
+```
 Dve zamke koje je VM pokazao (već su u kodu iznad):
 
 - `Focus()` u `AttachedToVisualTree` i `FocusAdorner="{x:Null}"`: bez toga se **prvi pritisnuti taster samo potroši** na dodelu fokusa, a oko ekrana se pojavi okvir fokusa.
@@ -1101,6 +1111,7 @@ Dve zamke koje je VM pokazao (već su u kodu iznad):
 - pravi laptop (rezolucija 1920x1080 i hibridna grafika; u VM-u je 1280x800)
 - `dotnet run` prozor na PC-u (veličina 960x540 iz `MainWindow.axaml` treba da stane)
 - veličina slova na pravom ekranu (`Scaling = 1.0` u `Program.cs`; ako je sitno, probaj `1.25`)
+
 ## Izgled ekrana, korak 2: kontrolna tabla
 
 Prvi odeljak menija dobija prave podatke: procesor (procenat), memorija, disk `/`, baterija, sistem (ime računara, kernel, vreme rada) i mreža (aktivni interfejsi sa IPv4 adresom). Osvežava se na dve sekunde.
@@ -1108,6 +1119,7 @@ Prvi odeljak menija dobija prave podatke: procesor (procenat), memorija, disk `/
 Podela posla: **`SystemInfo`** (nov folder `Services`) samo čita sistem (`/proc`, `/sys`, `DriveInfo`, `NetworkInterface`) i vraća `null` kad podatka nema, **`DashboardViewModel`** računa i drži tekst za prikaz, **`DashboardView`** ga crta kao kartice. Na Windowsu (`dotnet run` za razvoj) rade disk, ime računara i mreža, a procesor, memorija i baterija pokazuju „nema podatka" / „nema baterije", pa prozor na PC-u ne puca.
 
 Novi folder: `Services`. Novi fajlovi:
+
 ### `Services\SystemInfo.cs`
 
 ```csharp
@@ -1220,7 +1232,8 @@ public static class SystemInfo
         }
     }
 }
-```n
+```
+
 ### `ViewModels\DashboardViewModel.cs`
 
 ```csharp
@@ -1298,7 +1311,8 @@ public sealed class DashboardViewModel : ViewModelBase
 
     private static string Gb(long bytes) => $"{bytes / 1073741824.0:0.0} GB";
 }
-```n
+```
+
 ### `Views\DashboardView.axaml`
 
 ```xml
@@ -1388,7 +1402,8 @@ public sealed class DashboardViewModel : ViewModelBase
     </WrapPanel>
   </StackPanel>
 </UserControl>
-```n
+```
+
 ### `Views\DashboardView.axaml.cs`
 
 ```csharp
@@ -1400,7 +1415,7 @@ public partial class DashboardView : UserControl
 {
     public DashboardView() => InitializeComponent();
 }
-```n
+```
 Dve izmene u postojećim fajlovima:
 
 **`ViewModels\MainViewModel.cs`**: prvi red u listi `Items` postaje:
@@ -1428,6 +1443,358 @@ Dve izmene u postojećim fajlovima:
 - rezolucija 1920x1080 (u VM-u je 1280x800): kartice su široke 300 piksela, pa na većem ekranu staje više njih u red
 - `dotnet run` na PC-u (prozor 960x540: staju dve kartice u red)
 - IPv6 adrese se ne prikazuju (namerno), a Wi-Fi ime mreže (SSID) tek treba
+
+## Izgled ekrana, korak 3: kursor miša i odeljak Sistem
+
+Dve stvari. **Kursor miša**: Avalonia ga na uređaju ne crta, pa crtamo sopstvenu strelicu (`Path` u `Canvas`-u iznad cele stranice). Prati `PointerMoved`, pojavi se tek kad se miš prvi put pomeri, i crta se samo na uređaju (`top is not Window`); u prozoru na PC-u ostaje običan kursor sistema. **Odeljak Sistem** (poslednji u meniju): podaci o računaru i napajanje: *Restartuj* i *Isključi* traže potvrdu (Da/Ne), *Izađi u konzolu* vraća prijavu na `tty1`.
+
+Novi fajlovi: `ViewModels\RelayCommand.cs`, `ViewModels\SystemViewModel.cs`, `Views\SystemView.axaml`, `Views\SystemView.axaml.cs`.
+Izmene: `Services\SystemInfo.cs` (`using` i dve metode), `ViewModels\MainViewModel.cs` (poslednji red u `Items`), `MainView.axaml` i `MainView.axaml.cs` (zameni ceo sadržaj).
+
+### `ViewModels\RelayCommand.cs`
+
+```csharp
+using System.Windows.Input;
+
+namespace CloudAndBear.Desktop.ViewModels;
+
+// najjednostavnija komanda za dugme: izvrši zadatu akciju, uvek je dozvoljena
+public sealed class RelayCommand(Action execute) : ICommand
+{
+    public event EventHandler? CanExecuteChanged
+    {
+        add { }
+        remove { }
+    }
+
+    public bool CanExecute(object? parameter) => true;
+
+    public void Execute(object? parameter) => execute();
+}
+```
+
+### `ViewModels\SystemViewModel.cs`
+
+```csharp
+using System.Diagnostics;
+using System.Windows.Input;
+using CloudAndBear.Desktop.Services;
+
+namespace CloudAndBear.Desktop.ViewModels;
+
+// odeljak Sistem: podaci o računaru i napajanje (restart, isključenje, izlaz u konzolu)
+public sealed class SystemViewModel : ViewModelBase
+{
+    private string? _pending;
+    private string _message = "";
+
+    public SystemViewModel()
+    {
+        Restart = new RelayCommand(() => Pending = "restart");
+        Shutdown = new RelayCommand(() => Pending = "shutdown");
+        ExitToConsole = new RelayCommand(() => Environment.Exit(0));
+        Confirm = new RelayCommand(Run);
+        Cancel = new RelayCommand(() => Pending = null);
+    }
+
+    public string OsName { get; } = SystemInfo.OsName();
+    public string Kernel { get; } = SystemInfo.Kernel();
+    public string Hostname { get; } = Environment.MachineName;
+    public string Cpu { get; } = SystemInfo.CpuModel();
+    public string TimeZone { get; } = TimeZoneInfo.Local.Id;
+
+    public ICommand Restart { get; }
+    public ICommand Shutdown { get; }
+    public ICommand ExitToConsole { get; }
+    public ICommand Confirm { get; }
+    public ICommand Cancel { get; }
+
+    // radnja koja čeka potvrdu ("restart" ili "shutdown"), inače null
+    public string? Pending
+    {
+        get => _pending;
+        private set
+        {
+            if (!Set(ref _pending, value)) return;
+            OnPropertyChanged(nameof(IsPending));
+            OnPropertyChanged(nameof(Question));
+        }
+    }
+
+    public bool IsPending => Pending is not null;
+    public string Question => Pending == "restart" ? "Restartovati računar?" : "Isključiti računar?";
+
+    public string Message { get => _message; private set => Set(ref _message, value); }
+
+    // systemctl radi samo na Linuxu; na Windowsu (razvoj) javlja grešku umesto da išta isključi
+    private void Run()
+    {
+        var verb = Pending == "restart" ? "reboot" : "poweroff";
+        Pending = null;
+        try
+        {
+            Process.Start("systemctl", verb);
+        }
+        catch (Exception e)
+        {
+            Message = e.Message;
+        }
+    }
+}
+```
+
+### `Services\SystemInfo.cs`: dopuna
+
+Na vrh fajla, uz ostale `using` redove:
+
+```csharp
+using System.Runtime.InteropServices;
+```
+
+Zatim ove dve metode, odmah ispod `Kernel()` (a iznad `Uptime()`):
+
+```csharp
+    // npr. "Debian GNU/Linux 13 (trixie)"; na Windowsu naziv sistema
+    public static string OsName()
+    {
+        var line = OperatingSystem.IsLinux()
+            ? Read("/etc/os-release")?.Split('\n').FirstOrDefault(l => l.StartsWith("PRETTY_NAME="))
+            : null;
+        return line is null ? RuntimeInformation.OSDescription : line["PRETTY_NAME=".Length..].Trim('"');
+    }
+
+    // model procesora i broj jezgara, npr. "13th Gen Intel(R) Core(TM) i9-13900H, 20 jezgara"
+    public static string CpuModel()
+    {
+        var model = OperatingSystem.IsLinux()
+            ? Read("/proc/cpuinfo")?.Split('\n').FirstOrDefault(l => l.StartsWith("model name"))?.Split(':', 2)[1].Trim()
+            : null;
+        return $"{model ?? "procesor"}, {Environment.ProcessorCount} jezgara";
+    }
+```
+
+### `ViewModels\MainViewModel.cs`: poslednji red u `Items`
+
+Umesto `new("Sistem", new PlaceholderViewModel("Sistem")),` stavi:
+
+```csharp
+        new("Sistem", new SystemViewModel()),
+```
+
+### `Views\SystemView.axaml`
+
+```xml
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CloudAndBear.Desktop.ViewModels"
+             x:Class="CloudAndBear.Desktop.Views.SystemView"
+             x:DataType="vm:SystemViewModel">
+
+  <UserControl.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="#16212d" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="20" />
+      <Setter Property="Margin" Value="0,0,0,16" />
+      <Setter Property="MaxWidth" Value="640" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="#8a99a8" />
+    </Style>
+    <Style Selector="TextBlock.value">
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="Foreground" Value="#e0e0e0" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="Padding" Value="18,10" />
+    </Style>
+  </UserControl.Styles>
+
+  <StackPanel Spacing="16">
+    <TextBlock Text="Sistem" FontSize="32" FontWeight="SemiBold" Foreground="#9ecbff" />
+
+    <Border Classes="card">
+      <Grid ColumnDefinitions="170,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+        <TextBlock Classes="label" Text="Sistem" />
+        <TextBlock Grid.Column="1" Classes="value" Text="{Binding OsName}" />
+        <TextBlock Grid.Row="1" Classes="label" Text="Kernel" />
+        <TextBlock Grid.Row="1" Grid.Column="1" Classes="value" Text="{Binding Kernel}" />
+        <TextBlock Grid.Row="2" Classes="label" Text="Ime računara" />
+        <TextBlock Grid.Row="2" Grid.Column="1" Classes="value" Text="{Binding Hostname}" />
+        <TextBlock Grid.Row="3" Classes="label" Text="Procesor" />
+        <TextBlock Grid.Row="3" Grid.Column="1" Classes="value" TextWrapping="Wrap" Text="{Binding Cpu}" />
+        <TextBlock Grid.Row="4" Classes="label" Text="Vremenska zona" />
+        <TextBlock Grid.Row="4" Grid.Column="1" Classes="value" Text="{Binding TimeZone}" />
+      </Grid>
+    </Border>
+
+    <Border Classes="card">
+      <StackPanel Spacing="14">
+        <TextBlock Classes="label" Text="Napajanje" />
+
+        <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding !IsPending}">
+          <Button Content="Restartuj" Command="{Binding Restart}" />
+          <Button Content="Isključi" Command="{Binding Shutdown}" />
+          <Button Content="Izađi u konzolu" Command="{Binding ExitToConsole}" />
+        </StackPanel>
+
+        <StackPanel Spacing="12" IsVisible="{Binding IsPending}">
+          <TextBlock Classes="value" Text="{Binding Question}" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Button Content="Da" Command="{Binding Confirm}" />
+            <Button Content="Ne" Command="{Binding Cancel}" />
+          </StackPanel>
+        </StackPanel>
+
+        <TextBlock Text="{Binding Message}" Foreground="#ff5f5f" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>
+```
+
+### `Views\SystemView.axaml.cs`
+
+```csharp
+using Avalonia.Controls;
+
+namespace CloudAndBear.Desktop.Views;
+
+public partial class SystemView : UserControl
+{
+    public SystemView() => InitializeComponent();
+}
+```
+
+### `MainView.axaml`: zameni ceo sadržaj
+
+Razlike u odnosu na korak 2: šablon za `SystemViewModel`, spoljni `Grid` i `Canvas` sa strelicom na dnu.
+
+```xml
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CloudAndBear.Desktop.ViewModels"
+             xmlns:views="using:CloudAndBear.Desktop.Views"
+             x:Class="CloudAndBear.Desktop.MainView"
+             x:DataType="vm:MainViewModel"
+             Focusable="True"
+             FocusAdorner="{x:Null}">
+
+  <!-- koja stranica (ViewModel) se crta kojim pogledom (View) -->
+  <UserControl.DataTemplates>
+    <DataTemplate DataType="vm:DashboardViewModel">
+      <views:DashboardView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:SystemViewModel">
+      <views:SystemView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:PlaceholderViewModel">
+      <views:PlaceholderView />
+    </DataTemplate>
+  </UserControl.DataTemplates>
+
+  <Grid>
+    <DockPanel Background="#101820">
+
+      <!-- gornja traka -->
+      <Border DockPanel.Dock="Top" Height="56" Padding="24,0" Background="#0b1118">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="C&amp;B" FontSize="26" FontWeight="SemiBold" Foreground="#9ecbff" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="{Binding Clock}" FontSize="22" Foreground="#e0e0e0" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+
+      <!-- meni levo -->
+      <Border DockPanel.Dock="Left" Width="240" Background="#0d141c">
+        <ListBox ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}" Margin="12" Background="Transparent">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:NavItem">
+              <TextBlock Text="{Binding Title}" FontSize="18" Padding="8,6" />
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+
+      <!-- sadržaj izabrane stranice -->
+      <ContentControl Content="{Binding CurrentPage}" Margin="32" />
+
+    </DockPanel>
+
+    <!-- kursor miša: Avalonia ga na uređaju ne crta -->
+    <Canvas IsHitTestVisible="False">
+      <Path x:Name="MouseCursor" IsVisible="False" Fill="White" Stroke="Black" StrokeThickness="1"
+            Data="M0,0 L0,17 L4.5,13 L7.5,20 L10,19 L7,12 L12.5,12 Z" />
+    </Canvas>
+  </Grid>
+</UserControl>
+```
+
+### `MainView.axaml.cs`: zameni ceo sadržaj
+
+Razlike: izlaz je `Ctrl+Alt+Q` (kao u poglavlju o servisu) i blok koji pomera strelicu.
+
+```csharp
+using Avalonia.Controls;
+using Avalonia.Input;
+using CloudAndBear.Desktop.ViewModels;
+
+namespace CloudAndBear.Desktop;
+
+public partial class MainView : UserControl
+{
+    public MainView()
+    {
+        InitializeComponent();
+
+        var vm = new MainViewModel();
+        DataContext = vm;
+
+        // na uređaju fokus ne mora biti na ovom pogledu: tastere i miša slušamo na celom ekranu (TopLevel)
+        AttachedToVisualTree += (_, _) =>
+        {
+            Focus();   // bez ovoga se prvi pritisnuti taster samo potroši na dodelu fokusa
+            if (TopLevel.GetTopLevel(this) is not { } top) return;
+
+            top.KeyDown += (_, e) =>
+            {
+                switch (e.Key)
+                {
+                    case Key.Q when e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Alt): Environment.Exit(0); break;   // Ctrl+Alt+Q: izlaz
+                    case Key.Up: vm.Move(-1); break;
+                    case Key.Down: vm.Move(1); break;
+                }
+            };
+
+            // na uređaju (nije prozor) crtamo sopstveni kursor, jer ga Avalonia ne crta
+            if (top is not Window)
+                top.PointerMoved += (_, e) =>
+                {
+                    var p = e.GetPosition(this);
+                    Canvas.SetLeft(MouseCursor, p.X);
+                    Canvas.SetTop(MouseCursor, p.Y);
+                    MouseCursor.IsVisible = true;
+                };
+        };
+    }
+}
+```
+
+### Šta je provereno (VM, 2026-11-15)
+
+- strelica se pojavi kad se virtuelni miš pomeri, prati ga i staje na dugmad
+- odeljak Sistem prikazuje `Debian GNU/Linux 13 (trixie)`, kernel, ime računara, procesor i vremensku zonu (`Europe/Belgrade`); slova `č`, `ć`, `đ` se lepo crtaju (font Inter ih ima, ne zavise od konzolnog fonta)
+- klik na *Restartuj* prikaže „Restartovati računar?" sa *Da* i *Ne*; *Ne* vraća dugmad
+- *Isključi* pa *Da* stvarno ugasi VM (VirtualBox javlja `poweroff`)
+
+### Šta nije provereno
+
+- **pravi laptop**: kursor, touchpad klik na dugmad i izgled na 1920x1080 (strelica je velika 20 piksela, pa može delovati sitno)
+- *Restartuj* pa *Da* (isti poziv kao isključenje, samo `systemctl reboot`) i *Izađi u konzolu* (isti izlaz kao `Ctrl+Alt+Q`, koji je proveren)
+- `systemctl` radi jer GUI trenutno radi kao `root`; kad pređemo na običan nalog trebaće polkit pravilo
+- na Windowsu (`dotnet run`) nema `systemctl`: klik na *Da* ispiše grešku umesto da išta isključi
 ## Pokretanje pri dizanju (systemd servis na tty1)
 
 Do sada si GUI pokretao rukom (`sudo ... --drm` preko SSH-a). Servis ga pokreće sam pri dizanju, umesto konzolne prijave na `tty1`, pa se laptop podiže pravo u tvoj GUI.
@@ -1522,6 +1889,7 @@ Za razvoj (ponovna objava dok je servis uključen): `sudo systemctl restart clou
 
 - **pokretanje pri dizanju** (`enable` pa restart): live sistem u VM-u se svaki put diže iz ISO-a, pa instalacija ne ostaje; prvi pravi test je laptop
 - redosled sa mrežom i prijavom pri prvom dizanju (GUI ne zavisi od mreže)
+
 ## Ako ne radi
 
 | Šta vidiš | Šta znači / šta raditi |
@@ -1536,11 +1904,10 @@ Za razvoj (ponovna objava dok je servis uključen): `sudo systemctl restart clou
 | tasteri se i dalje pojavljuju u konzoli | `SilenceTerminal` nije uspeo (nema `/dev/tty0` ili nije pokrenuto sa `sudo`) |
 | tastatura konzole ne radi posle pada aplikacije | iz SSH-a: `sudo kbd_mode -u -C /dev/tty0` (nije probano) |
 
-## Sledeći koraci (kad prvo pokretanje radi)
+## Sledeći koraci
 
-1. Tastatura za srpsku latinicu (`č ć š đ ž`), čist izlaz umesto `Esc`/`Environment.Exit`, i tastatura priključena u hodu.
-2. Tvoj stvarni izgled umesto probnog pogleda (sve u `MainView`).
-3. Čist izlaz iz aplikacije umesto gašenja signalom.
-4. Systemd servis koji pokreće aplikaciju na `tty1` umesto `getty` (da ne treba `sudo`, nego prava sesije).
-5. Paket `cloudandbear-desktop` (`.deb`) sa zavisnostima iz poglavlja 3, pa u sopstveni apt repozitorijum i u sliku.
-6. Prilagoditi proveru GUI paketa u workflow-u za biblioteke iz poglavlja 3.
+1. Odeljci menija: **Mreža** (Wi-Fi: spisak mreža, povezivanje, polje za lozinku), **Kontejneri** (Docker: spisak, start/stop), **Kubernetes** (konteksti i podovi, samo čitanje).
+2. Tastatura za srpsku latinicu (`č ć š đ ž`) i tastatura/miš priključeni u hodu.
+3. Običan nalog umesto `root`-a za GUI (polkit za restart i isključenje).
+4. Paket `cloudandbear-desktop` (`.deb`) sa zavisnostima iz poglavlja 3, pa u sopstveni apt repozitorijum i u sliku.
+5. Nova slika: GUI, biblioteke i servis ugrađeni, uz ispravke instaliranog sistema; prilagoditi proveru GUI paketa u workflow-u.

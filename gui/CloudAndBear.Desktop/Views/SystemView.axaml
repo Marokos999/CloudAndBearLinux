@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CloudAndBear.Desktop.ViewModels"
+             x:Class="CloudAndBear.Desktop.Views.SystemView"
+             x:DataType="vm:SystemViewModel">
+
+  <UserControl.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="#16212d" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="20" />
+      <Setter Property="Margin" Value="0,0,0,16" />
+      <Setter Property="MaxWidth" Value="640" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="#8a99a8" />
+    </Style>
+    <Style Selector="TextBlock.value">
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="Foreground" Value="#e0e0e0" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="Padding" Value="18,10" />
+    </Style>
+  </UserControl.Styles>
+
+  <StackPanel Spacing="16">
+    <TextBlock Text="Sistem" FontSize="32" FontWeight="SemiBold" Foreground="#9ecbff" />
+
+    <Border Classes="card">
+      <Grid ColumnDefinitions="170,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+        <TextBlock Classes="label" Text="Sistem" />
+        <TextBlock Grid.Column="1" Classes="value" Text="{Binding OsName}" />
+        <TextBlock Grid.Row="1" Classes="label" Text="Kernel" />
+        <TextBlock Grid.Row="1" Grid.Column="1" Classes="value" Text="{Binding Kernel}" />
+        <TextBlock Grid.Row="2" Classes="label" Text="Ime računara" />
+        <TextBlock Grid.Row="2" Grid.Column="1" Classes="value" Text="{Binding Hostname}" />
+        <TextBlock Grid.Row="3" Classes="label" Text="Procesor" />
+        <TextBlock Grid.Row="3" Grid.Column="1" Classes="value" TextWrapping="Wrap" Text="{Binding Cpu}" />
+        <TextBlock Grid.Row="4" Classes="label" Text="Vremenska zona" />
+        <TextBlock Grid.Row="4" Grid.Column="1" Classes="value" Text="{Binding TimeZone}" />
+      </Grid>
+    </Border>
+
+    <Border Classes="card">
+      <StackPanel Spacing="14">
+        <TextBlock Classes="label" Text="Napajanje" />
+
+        <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding !IsPending}">
+          <Button Content="Restartuj" Command="{Binding Restart}" />
+          <Button Content="Isključi" Command="{Binding Shutdown}" />
+          <Button Content="Izađi u konzolu" Command="{Binding ExitToConsole}" />
+        </StackPanel>
+
+        <StackPanel Spacing="12" IsVisible="{Binding IsPending}">
+          <TextBlock Classes="value" Text="{Binding Question}" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Button Content="Da" Command="{Binding Confirm}" />
+            <Button Content="Ne" Command="{Binding Cancel}" />
+          </StackPanel>
+        </StackPanel>
+
+        <TextBlock Text="{Binding Message}" Foreground="#ff5f5f" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

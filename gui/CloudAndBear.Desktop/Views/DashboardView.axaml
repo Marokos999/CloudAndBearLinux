@@ -1,0 +1,86 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CloudAndBear.Desktop.ViewModels"
+             x:Class="CloudAndBear.Desktop.Views.DashboardView"
+             x:DataType="vm:DashboardViewModel">
+
+  <UserControl.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="#16212d" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="20" />
+      <Setter Property="Margin" Value="0,0,16,16" />
+      <Setter Property="Width" Value="300" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="#8a99a8" />
+    </Style>
+    <Style Selector="TextBlock.value">
+      <Setter Property="FontSize" Value="28" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#e0e0e0" />
+    </Style>
+    <Style Selector="ProgressBar">
+      <Setter Property="Height" Value="8" />
+      <Setter Property="Maximum" Value="100" />
+      <Setter Property="Foreground" Value="#9ecbff" />
+      <Setter Property="Background" Value="#0b1118" />
+    </Style>
+  </UserControl.Styles>
+
+  <StackPanel Spacing="16">
+    <TextBlock Text="Kontrolna tabla" FontSize="32" FontWeight="SemiBold" Foreground="#9ecbff" />
+
+    <WrapPanel>
+
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="label" Text="Procesor" />
+          <TextBlock Classes="value" Text="{Binding CpuText}" />
+          <ProgressBar Value="{Binding CpuPercent}" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="label" Text="Memorija" />
+          <TextBlock Classes="value" Text="{Binding MemoryText}" />
+          <ProgressBar Value="{Binding MemoryPercent}" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="label" Text="Disk /" />
+          <TextBlock Classes="value" Text="{Binding DiskText}" />
+          <ProgressBar Value="{Binding DiskPercent}" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="label" Text="Baterija" />
+          <TextBlock Classes="value" Text="{Binding BatteryText}" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="label" Text="Sistem" />
+          <TextBlock Classes="value" Text="{Binding Hostname}" />
+          <TextBlock Classes="label" Text="{Binding Kernel}" />
+          <TextBlock Classes="label" Text="{Binding UptimeText}" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="label" Text="Mreža" />
+          <ItemsControl ItemsSource="{Binding Network}" TextElement.FontSize="18" />
+        </StackPanel>
+      </Border>
+
+    </WrapPanel>
+  </StackPanel>
+</UserControl>
