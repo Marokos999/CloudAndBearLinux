@@ -16,9 +16,8 @@ internal class Program
       var card = args.FirstOrDefault(a => a.StartsWith("--card="))?[7..];
 
       return BuildAvaloniaApp().StartLinuxDrm(args, card: card, options: new DrmOutputOptions
-      {
-        Scaling = 1.0
-      });
+      {Scaling = 1.0},
+      inputBackend: new KeyboardInputBackend());
     }
 
     return BuildAvaloniaApp().UsePlatformDetect().StartWithClassicDesktopLifetime(args);

@@ -9,6 +9,7 @@
       <TextBlock x:Name="Clock" FontSize="32" Foreground="#e0e0e0" HorizontalAlignment="Center" />
       <TextBlock x:Name="Info" FontSize="18" Foreground="#98c379" HorizontalAlignment="Center"
                  Text="Pomeri miša ili dodirni ekran. Izlaz: Ctrl+C u SSH sesiji." />
+      <TextBlock x:Name="Typed" FontSize="28" Foreground="#e0e0e0" HorizontalAlignment="Center" />
     </StackPanel>
   </Grid>
 </UserControl>
