@@ -1,0 +1,30 @@
+[Unit]
+Description=CloudAndBear GUI (Avalonia, DRM)
+# uzima tty1 od konzolne prijave (getty)
+After=systemd-user-sessions.service systemd-logind.service getty@tty1.service
+Conflicts=getty@tty1.service
+ConditionPathExists=/dev/tty0
+# konzolna prijava se vraca kad GUI cisto izadje (Ctrl+Alt+Q), kad se zaustavi, i kad padne vise puta zaredom
+OnSuccess=getty@tty1.service
+OnFailure=getty@tty1.service
+StartLimitIntervalSec=30
+StartLimitBurst=3
+
+[Service]
+Environment=HOME=/root
+ExecStart=/opt/cloudandbear-gui/CloudAndBear.Desktop --drm
+# jedan pad se ponovo pokrece posle dve sekunde
+Restart=on-failure
+RestartSec=2
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+# posle izlaza ili pada: vrati tastaturu terminala (aplikacija je gasi dok radi)
+ExecStopPost=-/usr/bin/kbd_mode -u -C /dev/tty1
+
+[Install]
+WantedBy=multi-user.target

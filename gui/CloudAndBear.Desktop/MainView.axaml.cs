@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Threading;
+using CloudAndBear.Desktop.ViewModels;
 
 namespace CloudAndBear.Desktop;
 
@@ -10,31 +10,24 @@ public partial class MainView : UserControl
     {
         InitializeComponent();
 
-        Clock.Text = DateTime.Now.ToString("HH:mm:ss");
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        timer.Tick += (_, _) => Clock.Text = DateTime.Now.ToString("HH:mm:ss");
-        timer.Start();
+        var vm = new MainViewModel();
+        DataContext = vm;
 
-        PointerMoved += (_, e) =>
-        {
-            var p = e.GetPosition(this);
-            Info.Text = $"miš: {p.X:0}, {p.Y:0}";
-        };
-
-        PointerPressed += (_, e) => Info.Text =
-            $"klik: {e.GetCurrentPoint(this).Properties.PointerUpdateKind}";
-        PointerWheelChanged += (_, e) => Info.Text = $"točkić: {e.Delta.Y}";
-
+        // na uređaju fokus ne mora biti na ovom pogledu: tastere slušamo na celom ekranu (TopLevel)
         AttachedToVisualTree += (_, _) =>
         {
+            Focus();   // bez ovoga se prvi pritisnuti taster samo potroši na dodelu fokusa
             if (TopLevel.GetTopLevel(this) is not { } top) return;
             top.KeyDown += (_, e) =>
             {
-                if (e.Key == Key.Escape) Environment.Exit(0);   // privremeno
-                if (e.Key == Key.Back && Typed.Text?.Length > 0) Typed.Text = Typed.Text[..^1];
-                Info.Text = $"taster: {e.Key}";
+                switch (e.Key)
+                {
+                     case Key.Q when e.KeyModifiers
+                        == (KeyModifiers.Control | KeyModifiers.Alt): Environment.Exit(0); break;   // Ctrl+Alt+Q: izlaz
+                    case Key.Up: vm.Move(-1); break;
+                    case Key.Down: vm.Move(1); break;
+                }
             };
-            top.TextInput += (_, e) => Typed.Text += e.Text;
         };
     }
 }

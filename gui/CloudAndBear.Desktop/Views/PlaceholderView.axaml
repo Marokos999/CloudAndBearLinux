@@ -1,0 +1,10 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CloudAndBear.Desktop.ViewModels"
+             x:Class="CloudAndBear.Desktop.Views.PlaceholderView"
+             x:DataType="vm:PlaceholderViewModel">
+  <StackPanel Spacing="12">
+    <TextBlock Text="{Binding Title}" FontSize="32" FontWeight="SemiBold" Foreground="#9ecbff" />
+    <TextBlock Text="Ovaj odeljak još nije napravljen." FontSize="18" Foreground="#8a99a8" />
+  </StackPanel>
+</UserControl>
