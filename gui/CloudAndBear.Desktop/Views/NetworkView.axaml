@@ -75,13 +75,14 @@
 
         <StackPanel Grid.Row="3" Spacing="10" IsVisible="{Binding HasSelection}">
           <TextBlock Classes="value" Text="{Binding SelectedTitle}" />
-          <TextBox Text="{Binding Password}" PasswordChar="•" IsVisible="{Binding NeedsPassword}"
+          <TextBox Text="{Binding Password}" PasswordChar="•" RevealPassword="{Binding ShowPassword}" IsVisible="{Binding NeedsPassword}"
                    PlaceholderText="lozinka (prazno za već sačuvanu mrežu)"
                    FontSize="18" Width="440" HorizontalAlignment="Left">
             <TextBox.KeyBindings>
               <KeyBinding Gesture="Enter" Command="{Binding Connect}" />
             </TextBox.KeyBindings>
           </TextBox>
+          <CheckBox Content="Prikaži lozinku" IsChecked="{Binding ShowPassword}" IsVisible="{Binding NeedsPassword}" FontSize="16" />
           <StackPanel Orientation="Horizontal" Spacing="12">
             <Button Content="Poveži" Command="{Binding Connect}" />
             <Button Content="Prekini vezu" Command="{Binding Disconnect}" IsVisible="{Binding CanDisconnect}" />

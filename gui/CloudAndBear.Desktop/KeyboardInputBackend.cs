@@ -16,7 +16,7 @@ public sealed class KeyboardInputBackend : IInputBackend
     private Action<RawInputEventArgs>? _onInput;
     private IInputRoot? _root;
     private RawInputModifiers _mods;
-    private bool _caps;
+    private bool _caps, _leftAlt, _altGr, _togglePending;
 
     // fokus (polje za unos) drži Avalonijin zajednički uređaj tastature: samo preko njega slova stižu u TextBox;
     // sopstveni uređaj služi kao rezerva dok zajednički ne postoji
@@ -29,6 +29,7 @@ public sealed class KeyboardInputBackend : IInputBackend
     public void Initialize(IScreenInfoProvider info, Action<RawInputEventArgs> onInput)
     {
         _onInput = onInput;
+        KeyboardLayout.Enabled = true;
         _pointer.Initialize(info, onInput);
         SilenceTerminal();
 
@@ -126,8 +127,24 @@ public sealed class KeyboardInputBackend : IInputBackend
         if (k.Modifier != RawInputModifiers.None)
             _mods = down ? _mods | k.Modifier : _mods & ~k.Modifier;
         if (code == 58 && value == 1) _caps = !_caps;   // Caps Lock
+        if (code == 56) _leftAlt = down;
+        if (code == 100) _altGr = down;
 
-        var text = down ? TextFor(k) : null;
+        // Alt+Shift: raspored se menja kad se oba puste, ako između nije pritisnut nijedan drugi taster
+        var shiftKey = code is 42 or 54;
+        if (value == 1)
+        {
+            if ((code == 56 && _mods.HasFlag(RawInputModifiers.Shift)) || (shiftKey && _leftAlt)) _togglePending = true;
+            else if (code != 56 && !shiftKey) _togglePending = false;
+        }
+        else if (value == 0 && _togglePending && (code == 56 || shiftKey))
+        {
+            _togglePending = false;
+            Dispatcher.UIThread.Post(KeyboardLayout.Next);
+        }
+
+        var text = down ? TextFor(k, code) : null;
+        var key = LogicalKey(k, code);
         var mods = _mods;
         var time = (ulong)Environment.TickCount64;
         var type = down ? RawKeyEventType.KeyDown : RawKeyEventType.KeyUp;
@@ -135,19 +152,33 @@ public sealed class KeyboardInputBackend : IInputBackend
         Dispatcher.UIThread.Post(() =>
         {
             var keyboard = Keyboard;
-            _onInput?.Invoke(new RawKeyEventArgs(keyboard, time, root, type, k.Key, mods, k.Physical, text, KeyDeviceType.Keyboard));
+            _onInput?.Invoke(new RawKeyEventArgs(keyboard, time, root, type, key, mods, k.Physical, text, KeyDeviceType.Keyboard));
             if (text is not null)
                 _onInput?.Invoke(new RawTextInputEventArgs(keyboard, time, root, text));
         });
     }
 
-    // slovo koje taster daje (null za Ctrl/Alt/Win kombinacije i tastere bez slova)
-    private string? TextFor(KeyInfo k)
+    // slovo koje taster daje u izabranom rasporedu (null za Ctrl/levi Alt/Win kombinacije i tastere bez slova)
+    private string? TextFor(KeyInfo k, int code)
     {
-        if ((_mods & (RawInputModifiers.Control | RawInputModifiers.Alt | RawInputModifiers.Meta)) != 0) return null;
-        var letter = k.Normal is { Length: 1 } n && char.IsLetter(n[0]);
-        return (_mods.HasFlag(RawInputModifiers.Shift) ^ (_caps && letter)) ? k.Shifted : k.Normal;
+        if ((_mods & (RawInputModifiers.Control | RawInputModifiers.Meta)) != 0 || _leftAlt) return null;
+
+        var shift = _mods.HasFlag(RawInputModifiers.Shift);
+        string? normal = k.Normal, shifted = k.Shifted, altGr = null, shiftAltGr = null;
+        if (KeyboardLayout.Current.TryGet(code, out var l))
+            (normal, shifted, altGr, shiftAltGr) = (l.Normal, l.Shifted, l.AltGr, l.ShiftAltGr);
+
+        if (_altGr) return shift ? shiftAltGr ?? altGr : altGr;   // desni Alt: treći nivo, null kad ga taster nema
+
+        var letter = normal is { Length: 1 } n && char.IsLetter(n[0]);
+        return (shift ^ (_caps && letter)) ? shifted : normal;
     }
+
+    // Key za prečice: na QWERTZ rasporedu taster sa slovom Z je Key.Z, iako je fizički tamo gde je na US Y
+    private static Key LogicalKey(KeyInfo k, int code) =>
+        KeyboardLayout.Current.TryGet(code, out var l) && l.Normal is [>= 'a' and <= 'z' and var c]
+            ? Enum.Parse<Key>(char.ToUpper(c).ToString())
+            : k.Key;
 
     // ---- tabela tastera ----
 
@@ -193,6 +224,7 @@ public sealed class KeyboardInputBackend : IInputBackend
         P(52, Key.OemPeriod, PhysicalKey.Period, ".", ">");
         P(53, Key.OemQuestion, PhysicalKey.Slash, "/", "?");
         P(57, Key.Space, PhysicalKey.Space, " ", " ");
+        P(86, Key.OemBackslash, PhysicalKey.IntlBackslash, "\\", "|");   // dodatni taster na ISO tastaturama (pored levog Shift-a)
 
         void S(int code, Key key, PhysicalKey phys, RawInputModifiers mod = RawInputModifiers.None) => m[code] = new(key, phys, null, null, mod);
         S(1, Key.Escape, PhysicalKey.Escape);

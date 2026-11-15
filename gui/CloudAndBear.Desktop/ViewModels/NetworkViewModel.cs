@@ -27,7 +27,7 @@ public sealed class NetworkViewModel : ViewModelBase, IPage
     private IReadOnlyList<WifiNetwork> _networks = [];
     private WifiNetwork? _selected;
     private string _password = "", _status = "", _problem = "";
-    private bool _busy, _hasWifi, _restoring, _scannedOnce;
+    private bool _busy, _hasWifi, _restoring, _scannedOnce, _showPassword;
     private string _wifiDevice = "";
 
     public NetworkViewModel()
@@ -57,6 +57,9 @@ public sealed class NetworkViewModel : ViewModelBase, IPage
     }
 
     public string Password { get => _password; set => Set(ref _password, value); }
+
+    // prikaz lozinke slovima umesto tačkica (da se vidi šta je ukucano, npr. srpska slova)
+    public bool ShowPassword { get => _showPassword; set => Set(ref _showPassword, value); }
     public string Status { get => _status; private set => Set(ref _status, value); }
 
     public string Problem
@@ -110,6 +113,7 @@ public sealed class NetworkViewModel : ViewModelBase, IPage
     {
         _selected = value;
         Password = "";
+        ShowPassword = false;
         OnPropertyChanged(nameof(Selected));
         OnPropertyChanged(nameof(HasSelection));
         OnPropertyChanged(nameof(NeedsPassword));

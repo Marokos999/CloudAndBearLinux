@@ -1842,6 +1842,41 @@ Izmenjeni fajlovi:
 - dugmad *Pokreni* i *Restartuj* (isti poziv kao *Zaustavi*, samo druga putanja, nisu pojedinačno kliknuta)
 - izgled na 1920x1080 (u VM-u je 1280x800)
 - da li instalirani sistem na laptopu ima `NetworkManager`, `docker` i `kubectl` (u live slici su svi tu); ako neki fali, odeljak to kaže, ne puca
+## Srpska slova: rasporedi tastature
+
+Aplikacija sama čita tastaturu (poglavlje „Tastatura"), pa i sama zna raspored. Sada ih ima tri; menjaju se sa **levi Alt + Shift** (pusti oba, a da između nije pritisnut nijedan drugi taster), a izabrani se piše u gornjoj traci pored sata:
+
+| Oznaka | Raspored |
+|---|---|
+| `US` | američka tastatura (kao do sada) |
+| `SR` | srpska latinica kao na Windowsu (QWERTZ): `z` i `y` zamenjuju mesta; `š đ č ć ž` su na tasterima `[ ] ; ' \`; interpunkcija je drugačija (`Shift+2` daje `"`, `Shift+7` daje `/`, `-` je pored desnog Shift-a) |
+| `SR-US` | američka tastatura sa srpskim slovima: sve je kao na US, ali `[ ] ; ' \` daju `š đ č ć ž`, a **AltGr** (desni Alt) vraća staro značenje (`AltGr+[` je `[`, `Shift+AltGr+[` je `{`) |
+
+AltGr u `SR` rasporedu: `AltGr+q` je `\`, `w` je `|`, `e` je `€`, `f` je `[`, `g` je `]`, `v` je `@`, `b` je `{`, `n` je `}`, `m` je `§`, `,` je `<`, `.` je `>`, `1` je `~`, `3` je `^`, `7` je `` ` ``.
+
+Izbor se pamti u `/var/lib/cloudandbear/layout` (ili u `STATE_DIRECTORY` ako ga systemd zada), pa ostaje i posle restarta. U prozoru na PC-u (`dotnet run`) ovo ne postoji: tamo raspored određuje Windows.
+
+Novi i izmenjeni fajlovi:
+
+- `KeyboardLayout.cs` (novo): tabele rasporeda, izbor i pamćenje. Svaki raspored navodi samo tastere koji se razlikuju od US.
+- `KeyboardInputBackend.cs`: prati levi Alt i AltGr posebno, daje slova iz izabranog rasporeda i menja raspored na Alt+Shift. Levi Alt, Ctrl i Win i dalje daju prečice, ne slova (`Ctrl+Alt+Q` radi kao pre).
+- `MainViewModel.cs` i `MainView.axaml`: oznaka rasporeda pored sata.
+- `NetworkViewModel.cs` i `NetworkView.axaml`: polje **„Prikaži lozinku"** (slova umesto tačkica), da se vidi šta je ukucano.
+
+### Šta je provereno (VM, 2026-11-15)
+
+Preko pravih scancode-ova tastature u VM-u, u polju za lozinku Wi-Fi mreže (sa uključenim „Prikaži lozinku"):
+
+- `SR`: `š đ č ć ž`, `Š`, taster Y daje `z`, a Z daje `y`, `AltGr+q`/`f`/`v` daju `\ [ @`, `Shift+2` daje `"`
+- `SR-US`: `š đ č ć ž`, `AltGr+[` je `[`, `AltGr+;` je `;`, `Shift+AltGr+[` je `{`
+- Alt+Shift menja `US → SR → SR-US → US`; Alt+Shift sa tasterom između ne menja raspored
+- izbor ostaje posle ponovnog pokretanja aplikacije
+
+### Šta nije provereno
+
+- **fizička tastatura laptopa**: gde su stvarno ispisana slova na tasterima, pa koji raspored ti odgovara
+- mrtvi tasteri (`¸`, `¨`, `´` i slični) nisu napravljeni; taster levo od `1` daje `` ` `` i `~` u svim rasporedima
+- Caps Lock radi za sva slova, uključujući `š đ č ć ž`
 ## Pokretanje pri dizanju (systemd servis na tty1)
 
 Do sada si GUI pokretao rukom (`sudo ... --drm` preko SSH-a). Servis ga pokreće sam pri dizanju, umesto konzolne prijave na `tty1`, pa se laptop podiže pravo u tvoj GUI.
@@ -1953,7 +1988,7 @@ Za razvoj (ponovna objava dok je servis uključen): `sudo systemctl restart clou
 
 ## Sledeći koraci
 
-1. Tastatura za srpsku latinicu (`č ć š đ ž`) i tastatura/miš priključeni u hodu.
+1. Tastatura i miš priključeni u hodu.
 2. Običan nalog umesto `root`-a za GUI (polkit za restart i isključenje; grupa `docker` za Docker; kubeconfig tog korisnika).
 3. Paket `cloudandbear-desktop` (`.deb`) sa zavisnostima iz poglavlja 3, pa u sopstveni apt repozitorijum i u sliku.
 4. Nova slika (pripremljeno u `debian/` i `iso.yml`, čeka izgradnju na GitHub-u): GUI i servis ugrađeni (`/opt/cloudandbear-gui`, servis uključen), 9 biblioteka i `alsa-utils`, preseed instalatera (ime `cloudandbear`, `Europe/Belgrade`, korisnik u `sudo` i `docker`, apt izvori), konzolni font sa `č ć š đ ž`, CloudAndBear naslov i pozadina menija za dizanje, GRUB ime `CloudAndBear`; `nmcli`, `docker` i `kubectl` već su u slici. Tu su i PowerShell (Microsoftov apt repozitorijum) i oh-my-posh sa tvojom temom (`minimal-marko`, u konzoli varijanta bez ikona) i profilom u `/etc/skel`; to je dodatak koji ne prekida izgradnju kad preuzimanje ne uspe, pa u logu treba potražiti `UPOZORENJE [0300 powershell]`. Posle izgradnje proveriti u VM-u, pa na laptopu.

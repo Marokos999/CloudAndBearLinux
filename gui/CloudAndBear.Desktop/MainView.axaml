@@ -34,9 +34,10 @@
 
       <!-- gornja traka -->
       <Border DockPanel.Dock="Top" Height="56" Padding="24,0" Background="#0b1118">
-        <Grid ColumnDefinitions="*,Auto">
+        <Grid ColumnDefinitions="*,Auto,Auto">
           <TextBlock Text="C&amp;B" FontSize="26" FontWeight="SemiBold" Foreground="#9ecbff" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="1" Text="{Binding Clock}" FontSize="22" Foreground="#e0e0e0" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="{Binding LayoutName}" FontSize="18" Foreground="#9ecbff" VerticalAlignment="Center" Margin="0,0,24,0" />
+          <TextBlock Grid.Column="2" Text="{Binding Clock}" FontSize="22" Foreground="#e0e0e0" VerticalAlignment="Center" />
         </Grid>
       </Border>
 

@@ -11,6 +11,7 @@ public sealed class MainViewModel : ViewModelBase
     {
         _selected = Items[0];
         (_selected.Page as IPage)?.OnShown();
+        KeyboardLayout.Changed += () => OnPropertyChanged(nameof(LayoutName));
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         timer.Tick += (_, _) => Clock = DateTime.Now.ToString("HH:mm:ss");
@@ -42,6 +43,9 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     public ViewModelBase CurrentPage => _selected.Page;
+
+    // izabrani raspored tastature (US, SR, SR-US); prazno u prozoru na PC-u, gde raspored određuje sistem
+    public string LayoutName => KeyboardLayout.Enabled ? KeyboardLayout.Current.Name : "";
 
     public string Clock
     {
