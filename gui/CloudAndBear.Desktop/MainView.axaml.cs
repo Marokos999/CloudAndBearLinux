@@ -24,8 +24,9 @@ public partial class MainView : UserControl
                 switch (e.Key)
                 {
                     case Key.Q when e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Alt): Environment.Exit(0); break;   // Ctrl+Alt+Q: izlaz
-                    case Key.Up: vm.Move(-1); break;
-                    case Key.Down: vm.Move(1); break;
+                    case Key.Escape: Focus(); break;   // izlazak iz polja za unos, pa strelice opet menjaju odeljak
+                    case Key.Up when !Typing(top): vm.Move(-1); break;
+                    case Key.Down when !Typing(top): vm.Move(1); break;
                 }
             };
 
@@ -40,4 +41,7 @@ public partial class MainView : UserControl
                 };
         };
     }
+
+    // u polju za unos strelice pripadaju polju, ne meniju
+    private static bool Typing(TopLevel top) => top.FocusManager?.GetFocusedElement() is TextBox;
 }

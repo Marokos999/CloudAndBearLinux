@@ -12,6 +12,15 @@
     <DataTemplate DataType="vm:DashboardViewModel">
       <views:DashboardView />
     </DataTemplate>
+    <DataTemplate DataType="vm:NetworkViewModel">
+      <views:NetworkView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:ContainersViewModel">
+      <views:ContainersView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:KubernetesViewModel">
+      <views:KubernetesView />
+    </DataTemplate>
     <DataTemplate DataType="vm:SystemViewModel">
       <views:SystemView />
     </DataTemplate>

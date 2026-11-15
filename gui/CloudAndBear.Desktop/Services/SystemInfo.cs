@@ -99,6 +99,14 @@ public static class SystemInfo
         return (percent, status);
     }
 
+    // prva IPv4 adresa interfejsa sa datim imenom, ili "—" kad je nema
+    public static string Ipv4(string interfaceName)
+    {
+        var nic = NetworkInterface.GetAllNetworkInterfaces().FirstOrDefault(n => n.Name == interfaceName);
+        var address = nic?.GetIPProperties().UnicastAddresses.FirstOrDefault(a => a.Address.AddressFamily == AddressFamily.InterNetwork);
+        return address is null ? "—" : address.Address.ToString();
+    }
+
     // aktivni mrežni interfejsi sa IPv4 adresom, npr. "wlp0s20f3  192.168.1.5"
     public static IReadOnlyList<string> Network()
     {

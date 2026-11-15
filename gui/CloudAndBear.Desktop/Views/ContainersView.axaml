@@ -1,0 +1,78 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CloudAndBear.Desktop.ViewModels"
+             x:Class="CloudAndBear.Desktop.Views.ContainersView"
+             x:DataType="vm:ContainersViewModel">
+
+  <UserControl.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="#16212d" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="20" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="#8a99a8" />
+    </Style>
+    <Style Selector="TextBlock.value">
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="Foreground" Value="#e0e0e0" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="Padding" Value="18,10" />
+    </Style>
+    <Style Selector="ListBoxItem">
+      <Setter Property="Padding" Value="8,6" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="12">
+
+    <Grid ColumnDefinitions="*,Auto,Auto">
+      <TextBlock Text="Kontejneri" FontSize="32" FontWeight="SemiBold" Foreground="#9ecbff" />
+      <TextBlock Grid.Column="1" Text="{Binding Summary}" Classes="value" VerticalAlignment="Center" Margin="0,0,16,0" />
+      <Button Grid.Column="2" Content="Osveži" Command="{Binding Refresh}" />
+    </Grid>
+
+    <TextBlock Grid.Row="1" Text="{Binding Problem}" Foreground="#ff5f5f" FontSize="18" TextWrapping="Wrap" IsVisible="{Binding HasProblem}" />
+
+    <Border Grid.Row="2" Classes="card" Padding="12">
+      <ListBox ItemsSource="{Binding Containers}" SelectedItem="{Binding Selected}" Background="Transparent">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:ContainerRow">
+            <Grid ColumnDefinitions="28,200,*,220,180">
+              <Ellipse Width="12" Height="12" Fill="{Binding StateBrush}" HorizontalAlignment="Left" />
+              <TextBlock Grid.Column="1" Text="{Binding Info.Name}" FontSize="18" />
+              <TextBlock Grid.Column="2" Text="{Binding Info.Image}" FontSize="16" Foreground="#8a99a8" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="3" Text="{Binding Info.Status}" FontSize="16" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="4" Text="{Binding Info.Ports}" FontSize="16" Foreground="#8a99a8" TextTrimming="CharacterEllipsis" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <StackPanel Grid.Row="3" Spacing="10">
+      <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding NotConfirming}">
+        <Button Content="Pokreni" Command="{Binding Start}" />
+        <Button Content="Zaustavi" Command="{Binding Stop}" />
+        <Button Content="Restartuj" Command="{Binding Restart}" />
+        <Button Content="Obriši" Command="{Binding Remove}" />
+        <TextBlock Text="{Binding Message}" Classes="value" FontSize="16" VerticalAlignment="Center" Margin="12,0,0,0" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding ConfirmRemove}">
+        <TextBlock Text="{Binding RemoveQuestion}" Classes="value" VerticalAlignment="Center" />
+        <Button Content="Da" Command="{Binding ConfirmYes}" />
+        <Button Content="Ne" Command="{Binding ConfirmNo}" />
+      </StackPanel>
+    </StackPanel>
+
+    <Border Grid.Row="4" Classes="card" Padding="14" Height="170" IsVisible="{Binding HasSelection}">
+      <StackPanel Spacing="4">
+        <TextBlock Classes="label" Text="{Binding LogsTitle}" />
+        <TextBlock Text="{Binding Logs}" FontSize="14" Foreground="#c8d1da" TextWrapping="NoWrap" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

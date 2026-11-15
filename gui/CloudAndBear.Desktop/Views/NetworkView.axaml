@@ -1,0 +1,93 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CloudAndBear.Desktop.ViewModels"
+             xmlns:svc="using:CloudAndBear.Desktop.Services"
+             x:Class="CloudAndBear.Desktop.Views.NetworkView"
+             x:DataType="vm:NetworkViewModel">
+
+  <UserControl.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="#16212d" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="20" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="#8a99a8" />
+    </Style>
+    <Style Selector="TextBlock.value">
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="Foreground" Value="#e0e0e0" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="Padding" Value="18,10" />
+    </Style>
+    <Style Selector="ListBoxItem">
+      <Setter Property="Padding" Value="8,6" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*" RowSpacing="16">
+    <TextBlock Text="Mreža" FontSize="32" FontWeight="SemiBold" Foreground="#9ecbff" />
+
+    <Border Grid.Row="1" Classes="card">
+      <StackPanel Spacing="8">
+        <TextBlock Classes="label" Text="Veze" />
+        <TextBlock Text="{Binding Problem}" Foreground="#ff5f5f" IsVisible="{Binding HasProblem}" />
+        <ItemsControl ItemsSource="{Binding Devices}" TextElement.FontSize="18">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:DeviceRow">
+              <Grid ColumnDefinitions="170,90,170,*,170" Margin="0,3">
+                <TextBlock Text="{Binding Name}" />
+                <TextBlock Grid.Column="1" Text="{Binding TypeText}" Foreground="#8a99a8" />
+                <TextBlock Grid.Column="2" Text="{Binding StateText}" />
+                <TextBlock Grid.Column="3" Text="{Binding Connection}" />
+                <TextBlock Grid.Column="4" Text="{Binding Address}" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+
+    <Border Grid.Row="2" Classes="card">
+      <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Classes="label" Text="Wi-Fi mreže" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Content="Skeniraj" Command="{Binding Scan}" />
+        </Grid>
+
+        <TextBlock Grid.Row="1" Text="{Binding Status}" Foreground="#9ecbff" FontSize="16" TextWrapping="Wrap" />
+
+        <ListBox Grid.Row="2" ItemsSource="{Binding Networks}" SelectedItem="{Binding Selected}" Background="Transparent">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="svc:WifiNetwork">
+              <Grid ColumnDefinitions="80,*,130,120">
+                <TextBlock Text="{Binding SignalText}" Foreground="#8a99a8" FontSize="18" />
+                <TextBlock Grid.Column="1" Text="{Binding Ssid}" FontSize="18" />
+                <TextBlock Grid.Column="2" Text="{Binding SecurityText}" Foreground="#8a99a8" FontSize="16" />
+                <TextBlock Grid.Column="3" Text="{Binding ActiveText}" Foreground="#5fd38d" FontSize="16" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <StackPanel Grid.Row="3" Spacing="10" IsVisible="{Binding HasSelection}">
+          <TextBlock Classes="value" Text="{Binding SelectedTitle}" />
+          <TextBox Text="{Binding Password}" PasswordChar="•" IsVisible="{Binding NeedsPassword}"
+                   PlaceholderText="lozinka (prazno za već sačuvanu mrežu)"
+                   FontSize="18" Width="440" HorizontalAlignment="Left">
+            <TextBox.KeyBindings>
+              <KeyBinding Gesture="Enter" Command="{Binding Connect}" />
+            </TextBox.KeyBindings>
+          </TextBox>
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Button Content="Poveži" Command="{Binding Connect}" />
+            <Button Content="Prekini vezu" Command="{Binding Disconnect}" IsVisible="{Binding CanDisconnect}" />
+          </StackPanel>
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

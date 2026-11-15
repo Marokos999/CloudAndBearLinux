@@ -1795,6 +1795,53 @@ public partial class MainView : UserControl
 - *Restartuj* pa *Da* (isti poziv kao isključenje, samo `systemctl reboot`) i *Izađi u konzolu* (isti izlaz kao `Ctrl+Alt+Q`, koji je proveren)
 - `systemctl` radi jer GUI trenutno radi kao `root`; kad pređemo na običan nalog trebaće polkit pravilo
 - na Windowsu (`dotnet run`) nema `systemctl`: klik na *Da* ispiše grešku umesto da išta isključi
+## Izgled ekrana, korak 4: Mreža, Kontejneri i Kubernetes
+
+Ovaj korak je napisan i proveren u VM-u bez kucanja (na tvoj zahtev "za SVE"); kod je u projektu. Tri odeljka koja su bila prazna sada rade, a svaki zove spoljni alat ili Docker, pa **nijedan ne zavisi od dodatnih NuGet paketa**.
+
+| Odeljak | Odakle podaci | Šta može |
+|---|---|---|
+| **Mreža** | `nmcli` (NetworkManager) | adapteri sa IP adresom, spisak Wi-Fi mreža, povezivanje (polje za lozinku), prekid veze |
+| **Kontejneri** | Docker Engine API preko `/var/run/docker.sock` | spisak, pokreni, zaustavi, restartuj, obriši (sa pitanjem Da/Ne), poslednjih 8 linija ispisa izabranog kontejnera |
+| **Kubernetes** | `kubectl` (samo čitanje) | konteksti iz kubeconfig-a, čvorovi, podovi svih namespace-ova (boja po stanju) |
+
+### Šta je novo u projektu
+
+Novi fajlovi:
+
+- `Services\ProcessRunner.cs`: pokreće spoljni program bez ljuske (lozinke i imena sa razmacima prolaze bez navodnika), sa ograničenjem vremena; `ExitCode -1` znači "nije instaliran" ili "isteklo vreme"
+- `Services\NetworkManager.cs`, `Services\DockerClient.cs`, `Services\KubeClient.cs`: pozivi i čitanje odgovora (ništa od toga ne zna za ekran)
+- `ViewModels\NetworkViewModel.cs`, `ContainersViewModel.cs`, `KubernetesViewModel.cs` i `Views\NetworkView`, `ContainersView`, `KubernetesView` (`.axaml` i `.axaml.cs`)
+- `ViewModels\IPage.cs`: stranica koja zna kad je otvorena (`OnShown` / `OnHidden`); skrivena stranica ne pokreće programe niti osvežava podatke
+
+Izmenjeni fajlovi:
+
+- `ViewModels\RelayCommand.cs`: sada ume i asinhrone komande i `CanExecute` (dugme je zatamnjeno dok nešto traje)
+- `ViewModels\MainViewModel.cs`: tri nova odeljka umesto praznih strana, i javljanje `OnShown` / `OnHidden` pri promeni odeljka
+- `MainView.axaml`: tri nova šablona; `MainView.axaml.cs`: `Esc` izlazi iz polja za unos, a strelice gore/dole ne menjaju odeljak dok se kuca u polju
+- `KeyboardInputBackend.cs`: **slova nisu stizala u polje za unos** jer smo koristili sopstveni uređaj tastature koji ne zna za fokus; sada se koristi Avalonijin zajednički uređaj (čita se refleksijom, jer `Instance` nije javan)
+- `Services\SystemInfo.cs`: `Ipv4(ime)` za adresu adaptera
+
+### Kako radi i na šta paziti
+
+- **Mreža**: `nmcli device wifi connect "ime" password "lozinka"`. Pre unosa nove lozinke obriše se stari profil iste mreže, jer ga nmcli inače ponovo koristi i javlja `802-11-wireless-security.key-mgmt: property is missing` (to se desilo u VM-u posle pogrešne lozinke). Neuspešan pokušaj ne ostavlja profil. Prazna lozinka znači "koristi sačuvanu vezu". Lozinka se predaje nmcli-ju kao argument pa je kratko vidljiva u `ps`; za uređaj sa jednim korisnikom to je prihvatljivo.
+- **Kontejneri**: bez `docker` programa; GUI radi kao `root`, pa čita soket. Spisak se osvežava na tri sekunde dok je odeljak otvoren. Ako Docker ne radi, piše to umesto praznog spiska.
+- **Kubernetes**: kontekst se zadaje po pozivu (`--context`), pa se kubeconfig **nikad ne menja**. Kubeconfig se traži: `KUBECONFIG`, pa `/root/.kube/config`, pa `/home/*/.kube/config` (GUI radi kao `root`, a tvoj fajl je u tvom kućnom folderu). Osvežava se na deset sekundi.
+
+### Šta je provereno (VM, 2026-11-15)
+
+- **Mreža**: virtuelni Wi-Fi (`mac80211_hwsim` + `hostapd` u posebnom mrežnom prostoru, dve mreže, jedna WPA2 i jedna otvorena): spisak se pojavi, povezivanje sa ispravnom lozinkom daje adresu i oznaku „povezan", pogrešna lozinka daje „Lozinka nedostaje ili nije tačna.", povezivanje na otvorenu mrežu, *Prekini vezu*, izbor mreže ostaje posle osvežavanja. `veth*` adapteri Dockera se ne prikazuju.
+- **Kontejneri**: pravi Docker sa pet kontejnera: boje stanja, port `8080→80/tcp`, ispis izabranog kontejnera, *Zaustavi* (Docker potvrđuje `Exited (137)`), *Obriši* sa pitanjem (kontejner stvarno nestaje), poruka kad se Docker zaustavi i samooporavak kad se vrati.
+- **Kubernetes**: pravi `kubectl` 1.32 sa kubeconfig-om od dva konteksta; kontekst koji ne odgovara daje pravu poruku („The connection to the server … was refused"); bez `kubectl`-a piše „kubectl nije instaliran". Čvorovi i podovi su proverani na izmišljenom, ali po obliku pravom ispisu `kubectl get ... -o json` (CrashLoopBackOff, ImagePullBackOff, Completed, Terminating, Pending, Error, `2/2`, čvor `SchedulingDisabled`).
+- Kontrolna tabla i Sistem rade kao pre.
+
+### Šta nije provereno
+
+- **pravi Wi-Fi adapter** (laptop): vreme skeniranja, WPA3 i mreže sa korisničkim nalogom (enterprise) nisu probani; u VM-u je skeniranje trajalo oko 8 s
+- **pravi Kubernetes klaster**: preuzimanje k3s-a u VM je odbijeno, pa se čitanje JSON-a oslanja na poznat oblik ispisa, ne na stvaran klaster
+- dugmad *Pokreni* i *Restartuj* (isti poziv kao *Zaustavi*, samo druga putanja, nisu pojedinačno kliknuta)
+- izgled na 1920x1080 (u VM-u je 1280x800)
+- da li instalirani sistem na laptopu ima `NetworkManager`, `docker` i `kubectl` (u live slici su svi tu); ako neki fali, odeljak to kaže, ne puca
 ## Pokretanje pri dizanju (systemd servis na tty1)
 
 Do sada si GUI pokretao rukom (`sudo ... --drm` preko SSH-a). Servis ga pokreće sam pri dizanju, umesto konzolne prijave na `tty1`, pa se laptop podiže pravo u tvoj GUI.
@@ -1906,8 +1953,7 @@ Za razvoj (ponovna objava dok je servis uključen): `sudo systemctl restart clou
 
 ## Sledeći koraci
 
-1. Odeljci menija: **Mreža** (Wi-Fi: spisak mreža, povezivanje, polje za lozinku), **Kontejneri** (Docker: spisak, start/stop), **Kubernetes** (konteksti i podovi, samo čitanje).
-2. Tastatura za srpsku latinicu (`č ć š đ ž`) i tastatura/miš priključeni u hodu.
-3. Običan nalog umesto `root`-a za GUI (polkit za restart i isključenje).
-4. Paket `cloudandbear-desktop` (`.deb`) sa zavisnostima iz poglavlja 3, pa u sopstveni apt repozitorijum i u sliku.
-5. Nova slika: GUI, biblioteke i servis ugrađeni, uz ispravke instaliranog sistema; prilagoditi proveru GUI paketa u workflow-u.
+1. Tastatura za srpsku latinicu (`č ć š đ ž`) i tastatura/miš priključeni u hodu.
+2. Običan nalog umesto `root`-a za GUI (polkit za restart i isključenje; grupa `docker` za Docker; kubeconfig tog korisnika).
+3. Paket `cloudandbear-desktop` (`.deb`) sa zavisnostima iz poglavlja 3, pa u sopstveni apt repozitorijum i u sliku.
+4. Nova slika: GUI, biblioteke i servis ugrađeni, uz ispravke instaliranog sistema; `nmcli`, `docker` i `kubectl` moraju biti u slici; prilagoditi proveru GUI paketa u workflow-u.

@@ -10,6 +10,7 @@ public sealed class MainViewModel : ViewModelBase
     public MainViewModel()
     {
         _selected = Items[0];
+        (_selected.Page as IPage)?.OnShown();
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         timer.Tick += (_, _) => Clock = DateTime.Now.ToString("HH:mm:ss");
@@ -19,9 +20,9 @@ public sealed class MainViewModel : ViewModelBase
     public IReadOnlyList<NavItem> Items { get; } =
     [
         new("Kontrolna tabla", new DashboardViewModel()),
-        new("Mreža", new PlaceholderViewModel("Mreža")),
-        new("Kontejneri", new PlaceholderViewModel("Kontejneri")),
-        new("Kubernetes", new PlaceholderViewModel("Kubernetes")),
+        new("Mreža", new NetworkViewModel()),
+        new("Kontejneri", new ContainersViewModel()),
+        new("Kubernetes", new KubernetesViewModel()),
         new("Sistem", new SystemViewModel()),
     ];
 
@@ -30,7 +31,13 @@ public sealed class MainViewModel : ViewModelBase
         get => _selected;
         set
         {
-            if (Set(ref _selected, value)) OnPropertyChanged(nameof(CurrentPage));
+            var old = _selected;
+            if (!Set(ref _selected, value)) return;
+
+            // stranica koja se napušta prestaje da osvežava podatke, a nova odmah počinje
+            (old.Page as IPage)?.OnHidden();
+            (value.Page as IPage)?.OnShown();
+            OnPropertyChanged(nameof(CurrentPage));
         }
     }
 

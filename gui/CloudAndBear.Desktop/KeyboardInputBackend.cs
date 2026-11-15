@@ -12,11 +12,19 @@ namespace CloudAndBear.Desktop;
 public sealed class KeyboardInputBackend : IInputBackend
 {
     private readonly PointerInput _pointer = new();
-    private readonly KeyboardDevice _keyboard = new();
+    private readonly KeyboardDevice _ownKeyboard = new();
     private Action<RawInputEventArgs>? _onInput;
     private IInputRoot? _root;
     private RawInputModifiers _mods;
     private bool _caps;
+
+    // fokus (polje za unos) drži Avalonijin zajednički uređaj tastature: samo preko njega slova stižu u TextBox;
+    // sopstveni uređaj služi kao rezerva dok zajednički ne postoji
+    // (Instance nije javno dostupan, pa se čita refleksijom)
+    private static readonly System.Reflection.PropertyInfo? SharedKeyboard =
+        typeof(KeyboardDevice).GetProperty("Instance", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+
+    private KeyboardDevice Keyboard => SharedKeyboard?.GetValue(null) as KeyboardDevice ?? _ownKeyboard;
 
     public void Initialize(IScreenInfoProvider info, Action<RawInputEventArgs> onInput)
     {
@@ -126,9 +134,10 @@ public sealed class KeyboardInputBackend : IInputBackend
 
         Dispatcher.UIThread.Post(() =>
         {
-            _onInput?.Invoke(new RawKeyEventArgs(_keyboard, time, root, type, k.Key, mods, k.Physical, text, KeyDeviceType.Keyboard));
+            var keyboard = Keyboard;
+            _onInput?.Invoke(new RawKeyEventArgs(keyboard, time, root, type, k.Key, mods, k.Physical, text, KeyDeviceType.Keyboard));
             if (text is not null)
-                _onInput?.Invoke(new RawTextInputEventArgs(_keyboard, time, root, text));
+                _onInput?.Invoke(new RawTextInputEventArgs(keyboard, time, root, text));
         });
     }
 
