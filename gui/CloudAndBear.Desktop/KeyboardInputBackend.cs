@@ -7,11 +7,13 @@ using Microsoft.Win32.SafeHandles;
 
 namespace CloudAndBear.Desktop;
 
-// Unos na uređaju: miš i dodir ostaju Avalonijin LibInputBackend, a tastaturu čitamo sami iz /dev/input
-// (LibInputBackend tastaturu ne obrađuje). Raspored tastature je za sada samo US.
+// Unos na uređaju: miš i touchpad radi PointerInput (libinput), a tastaturu čitamo sami iz /dev/input
+// (LibInputBackend tastaturu ne obrađuje). Raspored je izabran u KeyboardLayout. Tastature se traže na svake
+// sekunde, pa one priključene posle pokretanja (USB, Bluetooth) rade čim se pojave, a nestale se zaboravljaju.
 public sealed class KeyboardInputBackend : IInputBackend
 {
     private readonly PointerInput _pointer = new();
+    private readonly HashSet<string> _readers = [];   // putanje tastatura koje se trenutno čitaju (pristup samo pod lock-om)
     private readonly KeyboardDevice _ownKeyboard = new();
     private Action<RawInputEventArgs>? _onInput;
     private IInputRoot? _root;
@@ -33,8 +35,7 @@ public sealed class KeyboardInputBackend : IInputBackend
         _pointer.Initialize(info, onInput);
         SilenceTerminal();
 
-        foreach (var path in Directory.GetFiles("/dev/input", "event*").Where(IsKeyboard))
-            new Thread(() => Read(path)) { IsBackground = true }.Start();
+        new Thread(WatchKeyboards) { IsBackground = true }.Start();
     }
 
     public void SetInputRoot(IInputRoot root)
@@ -111,6 +112,47 @@ public sealed class KeyboardInputBackend : IInputBackend
         }
     }
 
+    // Na svake sekunde traži nove tastature i za svaku pokreće čitanje. Čitanje se završi kad uređaj nestane
+    // (isključen) ili kad ga nije moguće otvoriti (udev još nije dao prava); u oba slučaja putanja se zaboravlja,
+    // pa se uređaj koji se vrati, ili dobije prava, uzima ponovo.
+    private void WatchKeyboards()
+    {
+        while (true)
+        {
+            try
+            {
+                foreach (var path in Directory.GetFiles("/dev/input", "event*"))
+                {
+                    lock (_readers)
+                    {
+                        if (_readers.Contains(path)) continue;
+                    }
+                    if (!IsKeyboard(path)) continue;
+
+                    lock (_readers) _readers.Add(path);
+                    new Thread(() =>
+                    {
+                        Read(path);
+                        lock (_readers) _readers.Remove(path);
+                        ReleaseKeys();
+                    }) { IsBackground = true }.Start();
+                }
+            }
+            catch
+            {
+                // /dev/input se ne čita: pokušaj ponovo
+            }
+            Thread.Sleep(1000);
+        }
+    }
+
+    // tastatura je isključena dok je neki taster bio pritisnut: bez ovoga bi Shift ili Alt ostali "zaglavljeni"
+    private void ReleaseKeys()
+    {
+        _mods = RawInputModifiers.None;
+        _leftAlt = _altGr = _togglePending = false;
+    }
+
     private void Read(string path)
     {
         try
@@ -125,7 +167,7 @@ public sealed class KeyboardInputBackend : IInputBackend
         }
         catch
         {
-            // uređaj nestao ili nema pravo čitanja: preskačemo ga
+            // uređaj nestao ili nema pravo čitanja: čitanje se završava
         }
     }
 

@@ -1877,6 +1877,27 @@ Preko pravih scancode-ova tastature u VM-u, u polju za lozinku Wi-Fi mreže (sa 
 - **fizička tastatura laptopa**: gde su stvarno ispisana slova na tasterima, pa koji raspored ti odgovara
 - mrtvi tasteri (`¸`, `¨`, `´` i slični) nisu napravljeni; taster levo od `1` daje `` ` `` i `~` u svim rasporedima
 - Caps Lock radi za sva slova, uključujući `š đ č ć ž`
+## Tastatura i miš priključeni u hodu
+
+Do sada su se uređaji tražili samo pri pokretanju aplikacije: USB tastatura ili miš priključen kasnije nije radio dok se GUI ne pokrene iznova. Sada se `/dev/input` pregleda na svake sekunde.
+
+- **Tastature** (`KeyboardInputBackend.WatchKeyboards`): za svaki novi `event*` uređaj sa tasterom A pokreće se čitanje. Čitanje se završi kad uređaj nestane (isključen) ili ne može da se otvori (udev mu još nije dao prava); tada se putanja zaboravlja, pa se uređaj koji se vrati ili dobije prava uzima ponovo. Ako je tastatura isključena dok je bio pritisnut Shift ili Alt, ti tasteri se puštaju (da ne ostanu „zaglavljeni").
+- **Miš i touchpad** (`PointerInput`): u istoj niti u kojoj radi libinput (kontekst nije bezbedan za više niti) nove uređaje dodaje `libinput_path_add_device`; `poll` sada ističe na sekundu, da se pregled radi i kad nema događaja. Isključene uređaje libinput sam uklanja, a dugme koje je bilo pritisnuto se pušta. Uređaj koji libinput ne prihvati (dugme napajanja, poklopac...) probava se tri puta (udev prava stižu sa zakašnjenjem), pa se odustaje dok se putanja ne vrati.
+- Kursor se i dalje pojavljuje tek kad se miš prvi put pomeri, pa bez miša nema strelice.
+
+### Šta je provereno (VM, 2026-11-15)
+
+Preko `uinput` uređaja, napravljenih **posle** pokretanja GUI-ja (servis kao nalog `cloudandbear`):
+
+- miš: strelice nema, pa se napravi virtuelni miš i strelica se odmah pomera; isključen i ponovo priključen miš opet radi
+- tastatura: virtuelna tastatura napravljena u hodu pomera odeljke (`Down`, `Down`, `Up`); isključena i ponovo priključena radi, a GUI ostaje `active`
+- ugrađena tastatura VM-a (PS/2) radi sve vreme
+
+### Šta nije provereno
+
+- **prava USB i Bluetooth uređaja na laptopu**: priključi i isključi USB miš i tastaturu dok GUI radi
+- tastatura sa više `event*` čvorova (multimedija tasteri): svaki čvor sa tasterom A se čita, kao i do sada
+- isključenje dok je bio pritisnut neki taster (zaglavljeni Shift): napisano, ali nije posebno probano
 ## Pokretanje pri dizanju (systemd servis na tty1)
 
 Do sada si GUI pokretao rukom (`sudo ... --drm` preko SSH-a). Servis ga pokreće sam pri dizanju, umesto konzolne prijave na `tty1`, pa se laptop podiže pravo u tvoj GUI.
@@ -2020,6 +2041,5 @@ Live sistem u VM-u, servis instaliran skriptom `install.sh` (kao na laptopu):
 
 ## Sledeći koraci
 
-1. Tastatura i miš priključeni u hodu.
-2. Paket `cloudandbear-desktop` (`.deb`) sa zavisnostima iz poglavlja 3, pa u sopstveni apt repozitorijum i u sliku.
-3. Nova slika (pripremljeno u `debian/` i `iso.yml`, čeka izgradnju na GitHub-u): GUI i servis ugrađeni (`/opt/cloudandbear-gui`, servis uključen), 9 biblioteka i `alsa-utils`, preseed instalatera (ime `cloudandbear`, `Europe/Belgrade`, korisnik u `sudo` i `docker`, apt izvori), konzolni font sa `č ć š đ ž`, CloudAndBear naslov i pozadina menija za dizanje, GRUB ime `CloudAndBear`; `nmcli`, `docker` i `kubectl` već su u slici. Tu su i PowerShell (Microsoftov apt repozitorijum) i oh-my-posh sa tvojom temom (`minimal-marko`, u konzoli varijanta bez ikona) i profilom u `/etc/skel`; to je dodatak koji ne prekida izgradnju kad preuzimanje ne uspe, pa u logu treba potražiti `UPOZORENJE [0300 powershell]`. Posle izgradnje proveriti u VM-u, pa na laptopu.
+1. Paket `cloudandbear-desktop` (`.deb`) sa zavisnostima iz poglavlja 3, pa u sopstveni apt repozitorijum i u sliku.
+2. Nova slika (pripremljeno u `debian/` i `iso.yml`, čeka izgradnju na GitHub-u): GUI i servis ugrađeni (`/opt/cloudandbear-gui`, servis uključen), 9 biblioteka i `alsa-utils`, preseed instalatera (ime `cloudandbear`, `Europe/Belgrade`, korisnik u `sudo` i `docker`, apt izvori), konzolni font sa `č ć š đ ž`, CloudAndBear naslov i pozadina menija za dizanje, GRUB ime `CloudAndBear`; `nmcli`, `docker` i `kubectl` već su u slici. Tu su i PowerShell (Microsoftov apt repozitorijum) i oh-my-posh sa tvojom temom (`minimal-marko`, u konzoli varijanta bez ikona) i profilom u `/etc/skel`; to je dodatak koji ne prekida izgradnju kad preuzimanje ne uspe, pa u logu treba potražiti `UPOZORENJE [0300 powershell]`. Posle izgradnje proveriti u VM-u, pa na laptopu.

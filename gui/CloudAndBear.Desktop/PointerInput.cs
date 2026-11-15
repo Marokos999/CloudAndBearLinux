@@ -12,6 +12,7 @@ namespace CloudAndBear.Desktop;
 public sealed class PointerInput
 {
     private const string LibInput = "libinput.so.10";
+    private const int MaxAttempts = 3;   // koliko puta se uređaj koji libinput ne prihvati proba pre nego što se odustane do njegovog ponovnog priključenja
 
     [DllImport(LibInput)] private static extern IntPtr libinput_path_create_context(IntPtr iface, IntPtr userData);
     [DllImport(LibInput)] private static extern IntPtr libinput_path_add_device(IntPtr li, string path);
@@ -75,17 +76,46 @@ public sealed class PointerInput
         var li = libinput_path_create_context(iface, IntPtr.Zero);
         if (li == IntPtr.Zero) return;
 
-        foreach (var path in Directory.GetFiles("/dev/input", "event*"))
+        // putanja -> -1 dodat; 0.. broj neuspelih pokušaja (uređaj koji libinput ne prihvata, ili udev još nije dao prava)
+        var attempts = new Dictionary<string, int>();
+
+        // Uređaji priključeni u hodu: traži se na svake sekunde, u ovoj istoj niti (libinput kontekst nije bezbedan za više niti).
+        // Isključene libinput sam uklanja kad čitanje sa njih ne uspe. Nestala putanja se zaboravlja, pa se uređaj koji se vrati dodaje ponovo.
+        void AddNewDevices()
         {
-            var device = libinput_path_add_device(li, path);
-            if (device != IntPtr.Zero) libinput_device_config_tap_set_enabled(device, 1);   // dodir touchpada je klik
+            string[] now;
+            try
+            {
+                now = Directory.GetFiles("/dev/input", "event*");
+            }
+            catch
+            {
+                return;
+            }
+
+            foreach (var gone in attempts.Keys.Except(now).ToList()) attempts.Remove(gone);
+            foreach (var path in now)
+            {
+                attempts.TryGetValue(path, out var tried);
+                if (tried < 0 || tried >= MaxAttempts) continue;
+
+                var device = libinput_path_add_device(li, path);
+                if (device != IntPtr.Zero)
+                {
+                    libinput_device_config_tap_set_enabled(device, 1);   // dodir touchpada je klik
+                    attempts[path] = -1;
+                }
+                else attempts[path] = tried + 1;
+            }
         }
 
+        AddNewDevices();
         var fd = new PollFd { Fd = libinput_get_fd(li), Events = 1 };   // POLLIN
         while (true)
         {
-            if (poll(ref fd, 1, -1) < 0 && Marshal.GetLastPInvokeError() != 4) break;   // 4 = EINTR, nastavi
+            if (poll(ref fd, 1, 1000) < 0 && Marshal.GetLastPInvokeError() != 4) break;   // 4 = EINTR, nastavi; 1000 ms: i bez događaja se traže novi uređaji
 
+            AddNewDevices();
             libinput_dispatch(li);
             IntPtr ev;
             while ((ev = libinput_get_event(li)) != IntPtr.Zero)
@@ -99,6 +129,11 @@ public sealed class PointerInput
     private void OnEvent(IntPtr ev)
     {
         var type = libinput_event_get_type(ev);
+        if (type == 2)   // DEVICE_REMOVED: miš isključen dok je taster bio pritisnut, pa se tasteri puštaju
+        {
+            ReleaseButtons();
+            return;
+        }
         if (type is < 400 or > 406) return;   // samo događaji pokazivača
 
         var p = libinput_event_get_pointer_event(ev);
@@ -114,6 +149,12 @@ public sealed class PointerInput
                 Scroll(p, type);
                 break;
         }
+    }
+
+    private void ReleaseButtons()
+    {
+        foreach (var (code, flag) in new[] { (0x110u, RawInputModifiers.LeftMouseButton), (0x111u, RawInputModifiers.RightMouseButton), (0x112u, RawInputModifiers.MiddleMouseButton) })
+            if (_buttons.HasFlag(flag)) Button(code, false);
     }
 
     private void Move(double dx, double dy)
