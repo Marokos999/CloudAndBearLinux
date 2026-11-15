@@ -1,0 +1,30 @@
+#!/bin/sh
+# 0100-cloudandbear-branding — CloudAndBear brend u slici (izvršava se u chroot-u pri izgradnji)
+set -e
+
+# /usr/lib/os-release preusmeren pomoću dpkg-divert, da ga base-files ne vrati pri nadogradnji (/etc/os-release je veza na njega)
+dpkg-divert --local --divert /usr/lib/os-release.debian --rename /usr/lib/os-release
+cat > /usr/lib/os-release << 'EOF'
+PRETTY_NAME="CloudAndBear Linux 0.1 (zasnovano na Debianu 13)"
+NAME="CloudAndBear Linux"
+VERSION_ID="0.1"
+VERSION="0.1 (trixie)"
+VERSION_CODENAME=trixie
+ID=cloudandbear
+ID_LIKE=debian
+HOME_URL="https://github.com/Marokos999/CloudAndBearLinux"
+BUG_REPORT_URL="https://github.com/Marokos999/CloudAndBearLinux/issues"
+EOF
+
+cat > /etc/issue << 'EOF'
+CloudAndBear Linux 0.1 (zasnovano na Debianu 13) \n \l
+
+EOF
+cp /etc/issue /etc/issue.net
+
+cat > /etc/motd << 'EOF'
+
+  CloudAndBear Linux 0.1  (zasnovano na Debianu 13)
+  Wi-Fi: nmtui    Pomoć: man intro
+
+EOF

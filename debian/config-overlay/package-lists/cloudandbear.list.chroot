@@ -1,0 +1,106 @@
+# CloudAndBear (Debian 13): samo konzola, nikakvog GUI-ja. Jedan paket po liniji.
+# Pravilo: nema desktop okruženja, X11, menadžera prijave, pretraživača ni grafičkog instalatera; GUI dodaje samo tvoj paket.
+
+# osnova i live sistem
+live-boot
+live-config
+live-config-systemd
+systemd-sysv
+linux-image-amd64
+sudo
+locales
+keyboard-configuration
+console-setup
+kbd
+
+# preporučeni paketi koje --apt-recommends false preskače, a sistem ih traži (bez user-setup nalog live se ne pravi)
+user-setup
+live-tools
+uuid-runtime
+dbus
+dbus-user-session
+libpam-systemd
+libnss-systemd
+systemd-timesyncd
+polkitd
+
+# firmver i mikrokod (laptopovi: i915, iwlwifi, SOF zvuk, NVIDIA/AMD)
+firmware-linux
+firmware-iwlwifi
+firmware-realtek
+firmware-atheros
+firmware-misc-nonfree
+firmware-amd-graphics
+firmware-intel-graphics
+firmware-intel-misc
+firmware-sof-signed
+firmware-nvidia-gsp
+intel-microcode
+amd64-microcode
+
+# mreža (nmtui/nmcli za Wi-Fi iz konzole)
+network-manager
+wpasupplicant
+iw
+rfkill
+wireless-regdb
+iproute2
+iputils-ping
+dnsutils
+openssh-server
+openssh-client
+curl
+wget
+ca-certificates
+
+# svakodnevni alati
+bash-completion
+less
+nano
+vim
+git
+tmux
+htop
+jq
+ripgrep
+tree
+unzip
+zip
+xz-utils
+zstd
+rsync
+file
+lsof
+strace
+man-db
+manpages
+
+# hardver i diskovi
+pciutils
+usbutils
+lshw
+dmidecode
+smartmontools
+nvme-cli
+parted
+gdisk
+cryptsetup
+lvm2
+e2fsprogs
+dosfstools
+btrfs-progs
+
+# DevOps (što Debian 13 ima; helm, k9s, argocd, terraform/opentofu nema: ide u sopstveni apt repo)
+docker.io
+docker-cli
+docker-compose
+docker-buildx
+containerd
+podman
+buildah
+skopeo
+ansible-core
+kubernetes-client
+kubectx
+kind
+age

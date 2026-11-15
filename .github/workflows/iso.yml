@@ -1,0 +1,58 @@
+name: ISO
+
+# Izgrađuje CloudAndBear (Debian 13) live ISO pomoću live-build u Debian kontejneru (debian/build.sh) i proverava da u slici nema GUI-ja.
+# Pokreće se samo ručno. ISO je artefakt pokretanja (7 dana); sa opcijom "objavi" ide i u izdanje iso-DATUM privatnog repoa (ISO je ispod 2 GiB).
+
+on:
+  workflow_dispatch:
+    inputs:
+      objavi:
+        description: "Objavi ISO i u izdanje iso-DATUM (inače samo artefakt)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  iso:
+    name: izgradi ISO
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: izgradi ISO (live-build u Debian 13 kontejneru)
+        run: |
+          set -o pipefail   # bez ovoga tee krije grešku izgradnje
+          mkdir -p out
+          docker run --rm --privileged -v "$PWD/debian:/src:ro" -v "$PWD/out:/out" debian:trixie bash /src/build.sh 2>&1 | tee out/build-console.log
+          ls -la out
+
+      - name: provera da u slici nema GUI-ja
+        run: |
+          # nikakvih drugih GUI-a: nema desktop okruženja, prozorskog sistema, pretraživača ni grafičkog instalatera
+          bad=$(grep -E '^(xorg|xserver|x11-|xwayland|wayland|weston|sway|gnome|kde|plasma|xfce|lxde|lxqt|mate-|cinnamon|budgie|gdm3?|lightdm|sddm|xdm|firefox|chromium|epiphany|libgtk|libqt|qt[56]|gtk|libwayland|mesa|libgl1|calamares|task-.*desktop|desktop-base)' out/cloudandbear-debian.packages.txt || true)
+          if [ -n "$bad" ]; then echo "u slici ima GUI paketa:"; echo "$bad"; exit 1; fi
+          echo "paketa u slici: $(wc -l < out/cloudandbear-debian.packages.txt), GUI paketa: 0"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudandbear-debian-iso
+          path: |
+            out/cloudandbear-debian.iso
+            out/cloudandbear-debian.iso.sha256
+            out/cloudandbear-debian.packages.txt
+            out/cloudandbear-debian.build.log
+          retention-days: 7
+          compression-level: 0
+
+      - name: objavi u izdanje (opciono)
+        if: ${{ inputs.objavi }}
+        run: |
+          tag="iso-$(date -u +%Y%m%d-%H%M)"
+          gh release create "$tag" --title "ISO $tag" --notes "CloudAndBear (Debian 13) live ISO, workflow ISO. Korisnik live, lozinka live." \
+            out/cloudandbear-debian.iso out/cloudandbear-debian.iso.sha256 out/cloudandbear-debian.packages.txt
+          echo "izdanje: $tag"
