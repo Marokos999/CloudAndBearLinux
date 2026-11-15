@@ -1982,7 +1982,7 @@ sudo install -m 600 -o cloudandbear -g cloudandbear ~/.kube/config /var/lib/clou
 
 ### Instalacija na laptop
 
-Iz foldera `gui` (promenljiva `L` je kao i ranije). Skripta `gui\deploy\install.sh` sve postavlja: program u `/opt/cloudandbear-gui` (vlasnik root), servis, nalog, PAM i polkit pravila, pa pokreće servis. Isto je i za prvu instalaciju i za svaku sledeću objavu:
+Iz foldera `gui` (promenljiva `L` je kao i ranije). Za brz razvoj (dok se GUI menja) skripta `gui\deploy\install.sh` sve postavlja; za trajnu instalaciju koristi paket (poglavlje niže): program u `/opt/cloudandbear-gui` (vlasnik root), servis, nalog, PAM i polkit pravila, pa pokreće servis. Isto je i za prvu instalaciju i za svaku sledeću objavu:
 
 ```powershell
 cd "D:\CloudAndBear Linux\CloudAndBearLinux\gui\CloudAndBear.Desktop"
@@ -1997,7 +1997,7 @@ ssh -t $L "sudo bash ~/deploy/install.sh"
 
 GUI se odmah pojavljuje na ekranu laptopa, kao nalog `cloudandbear` (`install.sh` na kraju ispisuje vlasnika procesa). `Ctrl+Alt+Q` ga zatvara i vraća prijavu. Servis je uključen za dizanje pri svakom paljenju (`systemctl enable` je u skripti). Za ručno pokretanje kao ranije (`sudo ... --drm` preko SSH-a) prvo zaustavi servis (`sudo systemctl stop cloudandbear-gui`), jer samo jedan program sme da drži ekran.
 
-Nova slika (ISO) ima sve ovo već u sebi: nalog se pravi u hooku `0200`, a ostali fajlovi dolaze iz `gui\deploy` preko `build.sh`.
+Nova slika (ISO) ima sve ovo već u sebi: GUI ulazi kao paket `cloudandbear-desktop` (poglavlje o paketu), a nalog pravi njegov `postinst`.
 
 ### Ako nešto pođe naopako
 
@@ -2025,6 +2025,105 @@ Live sistem u VM-u, servis instaliran skriptom `install.sh` (kao na laptopu):
 - ponašanje posle `enable` i restarta (live sistem se u VM-u svaki put diže iz ISO-a)
 - ISO sa nalogom iz hooka `0200`: čeka sledeću izgradnju
 - restart (*Restartuj* → *Da*): isti polkit kao isključenje, ali nije posebno kliknut
+## Paket cloudandbear-desktop i sopstveni apt repozitorijum
+
+GUI se do sada postavljao kopiranjem (`gui/deploy/install.sh`). Pravi način je paket: nadogradnja je `apt upgrade`, a slika ga instalira kao i svaki drugi paket. Kopiranje (`install.sh`) ostaje za brz razvoj, dok se GUI menja.
+
+### Šta je u paketu
+
+| Fajl | Čemu služi |
+|---|---|
+| `/opt/cloudandbear-gui/` | objavljeni program sa .NET runtime-om (vlasnik root, svi smeju da čitaju i izvršavaju) |
+| `/usr/lib/systemd/system/cloudandbear-gui.service` | servis na `tty1` (kao nalog `cloudandbear`) |
+| `/usr/lib/sysusers.d/cloudandbear.conf` | nalog `cloudandbear` i njegove grupe |
+| `/etc/pam.d/cloudandbear-gui` | PAM za sesiju servisa (conffile: tvoje izmene se čuvaju pri nadogradnji) |
+| `/usr/share/polkit-1/rules.d/49-cloudandbear-gui.rules` | restart, isključenje i Wi-Fi bez lozinke za taj nalog |
+
+**Zavisnosti** (`Depends`): `libgl1`, `libfontconfig1`, `libdrm2`, `libegl1`, `libgbm1`, `libinput10`, `libevdev2`, `libgl1-mesa-dri`, `libegl-mesa0` (devet biblioteka iz poglavlja 3), pa `libc6`, `libstdc++6`, `libgcc-s1`, `zlib1g`, `systemd`, `libpam-systemd`, `polkitd`, `kbd`. **Preporučeno** (`Recommends`): `network-manager`, `docker.io` ili `docker-ce`, `kubernetes-client` ili `kubectl`, `alsa-utils`.
+
+**Skripte paketa** (`gui/package/postinst`, `prerm`, `postrm`):
+
+- *prva instalacija*: pravi nalog (`systemd-sysusers`), uključuje servis za dizanje i pokreće GUI
+- *nadogradnja*: GUI se ponovo pokreće samo ako već radi; servis koji si ti isključio **ostaje isključen**
+- ako je GUI ranije postavljen sa `install.sh`, paket uklanja te kopije iz `/etc` (zasenčile bi paketne) i prenosi uključenost servisa
+- *uklanjanje*: servis se zaustavlja (vraća se konzolna prijava), uključenost se skida; nalog i stanje ostaju
+- *brisanje* (`purge`): briše i `/var/lib/cloudandbear` i PAM fajl; nalog `cloudandbear` ostaje (sysusers ga ne uklanja)
+
+**Važno: ne koristi `systemctl restart cloudandbear-gui`.** Atomski restart ostavlja GUI zaglavljen pre pokretanja (`OnSuccess=` vraća prijavu na `tty1` baš kad se GUI pokreće, pa on čeka terminal); u probi je zaglavio u svih 6 pokušaja. Pouzdano je `sudo systemctl stop cloudandbear-gui`, pa `sudo systemctl start cloudandbear-gui` (12 od 12). Tako rade i `install.sh` i skripta paketa.
+
+### Izgradnja paketa
+
+Treba samo `dpkg-deb` (Debian, Ubuntu ili Docker; na Windowsu ga nema). Iz foldera repoa, na Linuxu:
+
+```bash
+dotnet publish gui/CloudAndBear.Desktop -c Release -r linux-x64 --self-contained -o gui/publish
+bash gui/package/build-deb.sh                  # verzija je 0.1.0+DATUM, ili: build-deb.sh 0.2.0
+# izlaz: gui/package/out/cloudandbear-desktop_VERZIJA_amd64.deb
+```
+
+Na GitHub-u: workflow **Paket** (`desktop-deb.yml`, pokreće se ručno) objavi GUI, napravi paket i repozitorijum i daje ih kao artefakt `cloudandbear-desktop`. Nova slika (workflow **ISO**) paket pravi sama: `build.sh` ga stavlja u `config/packages.chroot`, `live-build` ga instalira, a postinst pravi nalog i uključuje servis (zato hook `0200` više ne postoji).
+
+Instalacija rukom, jednom (iz foldera `gui`, `L` kao i ranije):
+
+```powershell
+scp package\out\cloudandbear-desktop_*_amd64.deb "${L}:"
+ssh -t $L "sudo apt install -y ./cloudandbear-desktop_*_amd64.deb"
+```
+
+`apt install ./paket.deb` sam povlači zavisnosti iz Debiana.
+
+### Sopstveni apt repozitorijum
+
+`bash gui/package/build-repo.sh` pravi običan folder (`gui/package/repo`) koji može da služi bilo koji web server:
+
+```
+repo/
+  pool/main/cloudandbear-desktop_VERZIJA_amd64.deb
+  dists/trixie/Release, InRelease, Release.gpg
+  dists/trixie/main/binary-amd64/Packages(.gz,.xz)
+  cloudandbear.gpg          # javni ključ (samo kad je potpisan)
+```
+
+**Potpis.** Klijent odbija repozitorijum bez potpisa (u probi: `The repository ... is not signed`), pa je ključ obavezan za pravu upotrebu. Ključ se pravi jednom, na tvom računaru, a **tajni deo se nikad ne stavlja u repo**:
+
+```bash
+gpg --quick-gen-key "CloudAndBear paketi" ed25519 sign never
+gpg --list-secret-keys --keyid-format long                     # ID ključa
+gpg --armor --export-secret-keys ID > cloudandbear-tajni.asc    # ČUVAJ, ne commituj
+```
+
+- lokalno: `APT_SIGNING_KEY=ID bash gui/package/build-repo.sh`
+- na GitHub-u: sadržaj `cloudandbear-tajni.asc` ide u tajnu `APT_SIGNING_KEY_PRIVATE` (Settings → Secrets and variables → Actions); workflow **Paket** je uveze i potpiše. Bez tajne repozitorijum je nepotpisan.
+
+**Kako klijent (laptop ili slika) koristi repozitorijum.** `/etc/apt/sources.list.d/cloudandbear.sources`:
+
+```
+Types: deb
+URIs: https://TVOJA-ADRESA/apt
+Suites: trixie
+Components: main
+Signed-By: /usr/share/keyrings/cloudandbear.gpg
+```
+
+Javni ključ: `curl -fsSL https://TVOJA-ADRESA/apt/cloudandbear.gpg | sudo tee /usr/share/keyrings/cloudandbear.gpg > /dev/null`. Posle toga: `sudo apt update && sudo apt upgrade`.
+
+**Gde postaviti repozitorijum** je tvoja odluka (objavljuje se spolja, pa to ne radim sam). Mogućnosti: GitHub Pages iz posebnog javnog repoa (za privatni repo Pages traži plaćen plan), sopstveni web server, ili S3-kompatibilno skladište (npr. MinIO). U `.deb` nema tajni, ali licenca projekta još nije određena (`gui/package/copyright`), pa razmisli pre javnog objavljivanja. GitHub Releases ne odgovara, jer apt traži fiksnu strukturu foldera.
+
+### Šta je provereno (VM, 2026-11-15)
+
+- paket se gradi (32 MB) i prolazi `lintian` bez grešaka koje bi značile kvar (ostaju očekivane: program je u `/opt`, ugrađene biblioteke i neočišćene `.so` iz .NET-a); svi folderi u paketu su `0755`
+- `apt install ./paket.deb` na čistom live sistemu povlači zavisnosti, pravi nalog, uključuje servis i pokreće GUI kao `cloudandbear`; `dpkg -V` je čist
+- nadogradnja: GUI se ponovo pokrene i ostaje uključen; servis koji je administrator isključio ostaje isključen
+- prelaz sa `install.sh` na paket: stare kopije iz `/etc` nestaju, a jedinica i veza za dizanje dolaze iz paketa
+- uklanjanje vraća konzolnu prijavu, a `purge` briše stanje i PAM fajl
+- instalacija u minimalnom Debian chroot-u u kome systemd **ne radi** (kao `live-build`): nalog nastaje, servis je uključen, uklanjanje čisti vezu
+- apt repozitorijum: potpisan (probni ključ) se prima, `apt install` i `apt upgrade` iz njega rade (GUI se pokrene iznova); nepotpisan se odbija
+
+### Šta nije provereno
+
+- **workflow-ovi na GitHub-u** (**Paket** i nova izgradnja **ISO**): napisani, YAML je ispravan, ali nisu pokrenuti; prva prava izgradnja slike sa paketom je tek sledeća
+- **potpis pravim ključem** i objavljen repozitorijum (adresa, HTTPS): biće tek kad izabereš gde se postavlja
+- instalacija paketa na pravom laptopu (isti koraci kao u VM-u, ali sa `i915`)
 ## Ako ne radi
 
 | Šta vidiš | Šta znači / šta raditi |
@@ -2041,5 +2140,6 @@ Live sistem u VM-u, servis instaliran skriptom `install.sh` (kao na laptopu):
 
 ## Sledeći koraci
 
-1. Paket `cloudandbear-desktop` (`.deb`) sa zavisnostima iz poglavlja 3, pa u sopstveni apt repozitorijum i u sliku.
-2. Nova slika (pripremljeno u `debian/` i `iso.yml`, čeka izgradnju na GitHub-u): GUI i servis ugrađeni (`/opt/cloudandbear-gui`, servis uključen), 9 biblioteka i `alsa-utils`, preseed instalatera (ime `cloudandbear`, `Europe/Belgrade`, korisnik u `sudo` i `docker`, apt izvori), konzolni font sa `č ć š đ ž`, CloudAndBear naslov i pozadina menija za dizanje, GRUB ime `CloudAndBear`; `nmcli`, `docker` i `kubectl` već su u slici. Tu su i PowerShell (Microsoftov apt repozitorijum) i oh-my-posh sa tvojom temom (`minimal-marko`, u konzoli varijanta bez ikona) i profilom u `/etc/skel`; to je dodatak koji ne prekida izgradnju kad preuzimanje ne uspe, pa u logu treba potražiti `UPOZORENJE [0300 powershell]`. Posle izgradnje proveriti u VM-u, pa na laptopu.
+1. Pokrenuti na GitHub-u workflow **ISO** (sada gradi i instalira paket) i **Paket**; proveriti sliku i instalaciju na laptopu.
+2. Napraviti ključ za potpis i izabrati gde se postavlja apt repozitorijum (poglavlje o paketu), pa laptop i slika dobijaju nadogradnje preko `apt`.
+3. Ostaje po potrebi: nov izgled odeljaka, dodatni odeljci i tvoje izmene.

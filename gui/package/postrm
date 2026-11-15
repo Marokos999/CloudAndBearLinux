@@ -1,0 +1,18 @@
+#!/bin/sh
+# postrm paketa cloudandbear-desktop
+set -e
+
+case "$1" in
+remove | purge)
+    if [ -d /run/systemd/system ]; then
+        systemctl daemon-reload || true
+    fi
+    ;;
+esac
+
+# purge briše i stanje aplikacije (izabrani raspored tastature, kubeconfig); nalog cloudandbear ostaje, jer sysusers nalog ne uklanja
+if [ "$1" = purge ]; then
+    rm -rf /var/lib/cloudandbear
+fi
+
+exit 0

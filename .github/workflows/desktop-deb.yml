@@ -1,0 +1,54 @@
+name: Paket
+
+# Pravi paket cloudandbear-desktop (.deb) od GUI-ja i apt repozitorijum sa njim (gui/package/build-deb.sh i build-repo.sh).
+# Pokreće se samo ručno. Rezultat je artefakt pokretanja (7 dana): paket i repozitorijum kao arhiva koju sam postaviš na web server.
+# Potpis: ako u podešavanjima repoa postoji tajna APT_SIGNING_KEY_PRIVATE (tajni GPG ključ u ASCII obliku: gpg --armor --export-secret-keys ID),
+# repozitorijum se potpisuje; bez nje je nepotpisan. Ključ se NIKAD ne stavlja u repo.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  paket:
+    name: napravi paket i apt repozitorijum
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: objavi GUI (CloudAndBear.Desktop, linux-x64, sa .NET runtime-om)
+        run: dotnet publish gui/CloudAndBear.Desktop -c Release -r linux-x64 --self-contained -o gui/publish
+
+      - name: napravi paket (.deb)
+        run: bash gui/package/build-deb.sh "0.1.0+$(date -u +%Y%m%d%H%M)"
+
+      - name: uvezi ključ za potpis (ako je tajna zadata)
+        env:
+          APT_SIGNING_KEY_PRIVATE: ${{ secrets.APT_SIGNING_KEY_PRIVATE }}
+        run: |
+          if [ -n "$APT_SIGNING_KEY_PRIVATE" ]; then
+            printf '%s\n' "$APT_SIGNING_KEY_PRIVATE" | gpg --batch --import
+            echo "APT_SIGNING_KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')" >> "$GITHUB_ENV"
+            echo "ključ za potpis je uvezen"
+          else
+            echo "nema tajne APT_SIGNING_KEY_PRIVATE: repozitorijum će biti nepotpisan"
+          fi
+
+      - name: napravi apt repozitorijum
+        run: |
+          sudo apt-get install -y -qq apt-utils
+          bash gui/package/build-repo.sh
+          tar -C gui/package -czf apt-repo.tar.gz repo
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudandbear-desktop
+          path: |
+            gui/package/out/*.deb
+            apt-repo.tar.gz
+          retention-days: 7
+          compression-level: 0

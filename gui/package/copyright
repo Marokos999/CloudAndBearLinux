@@ -1,0 +1,14 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: CloudAndBear Linux
+Source: https://github.com/Marokos999/CloudAndBearLinux
+
+Files: *
+Copyright: 2026 Marokos999
+License: custom
+ Licenca još nije određena (privatni projekat). Dok se ne odredi, sva prava su zadržana.
+
+Files: opt/cloudandbear-gui/*
+Copyright: Avalonia, SkiaSharp, HarfBuzzSharp i .NET autori
+License: MIT
+ Program je objavljen kao samostalan (self-contained) .NET program sa bibliotekama pod MIT licencama
+ (Avalonia, SkiaSharp, HarfBuzzSharp, Microsoft .NET). Tekstovi licenci su uz biblioteke u izvornim paketima.

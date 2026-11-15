@@ -20,6 +20,7 @@ systemctl stop cloudandbear-gui 2> /dev/null || true
 
 echo "== program u /opt/cloudandbear-gui"
 rm -rf /opt/cloudandbear-gui
+mkdir -p /opt
 cp -r "$app" /opt/cloudandbear-gui
 # vlasnik root, ostali smeju samo da čitaju i izvršavaju (scp sa Windowsa pravi foldere samo za vlasnika, a nalog cloudandbear ne bi mogao da ih otvori)
 chown -R root:root /opt/cloudandbear-gui

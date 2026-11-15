@@ -41,21 +41,15 @@ cp -a "$src/config-overlay/." config/
 find config -type f -exec sed -i 's/\r$//' {} +
 find config/hooks -type f -name '*.chroot' -exec chmod +x {} + 2> /dev/null || true
 
-# GUI ide u sliku tek posle prethodne naredbe: ona menja fajlove u config/, a binarne datoteke ne smeju da se diraju
+# GUI ulazi u sliku kao paket cloudandbear-desktop (.deb), isti koji ide u apt repozitorijum (gui/package/build-deb.sh).
+# live-build sam instalira sve iz config/packages.chroot (imena moraju da završavaju na _amd64.deb), a postinst paketa pravi nalog
+# cloudandbear i uključuje servis. Paket se pravi tek posle prethodnih naredbi: one menjaju fajlove u config/, a binarni se ne diraju.
 gui=${GUI:-/gui}
 if [ "${CHECK_ONLY:-0}" != "1" ]; then
-  echo "== GUI (CloudAndBear.Desktop) u sliku"
+  echo "== GUI: paket cloudandbear-desktop (iz gui/publish)"
   [ -f "$gui/publish/CloudAndBear.Desktop" ] || { echo "NEMA $gui/publish/CloudAndBear.Desktop: prvo dotnet publish (vidi build.ps1 ili workflow)"; exit 1; }
-  [ -f "$gui/deploy/cloudandbear-gui.service" ] || { echo "NEMA $gui/deploy/cloudandbear-gui.service"; exit 1; }
-  mkdir -p config/includes.chroot/opt/cloudandbear-gui
-  cp -a "$gui/publish/." config/includes.chroot/opt/cloudandbear-gui/
-  # servis, nalog bez prijave (sysusers), PAM i polkit pravila: GUI radi kao nalog cloudandbear, ne kao root (isti fajlovi kao u gui/deploy/install.sh)
-  put() { [ -f "$gui/deploy/$1" ] || { echo "NEMA $gui/deploy/$1"; exit 1; }; mkdir -p "$(dirname "config/includes.chroot/$2")"; sed 's/\r$//' "$gui/deploy/$1" > "config/includes.chroot/$2"; }
-  put cloudandbear-gui.service etc/systemd/system/cloudandbear-gui.service
-  put cloudandbear.sysusers usr/lib/sysusers.d/cloudandbear.conf
-  put cloudandbear-gui.pam etc/pam.d/cloudandbear-gui
-  put cloudandbear-gui.rules etc/polkit-1/rules.d/49-cloudandbear-gui.rules
-  du -sh config/includes.chroot/opt/cloudandbear-gui
+  mkdir -p config/packages.chroot
+  OUT="$PWD/config/packages.chroot" bash "$gui/package/build-deb.sh" ${GUI_VERSION:+"$GUI_VERSION"}
 fi
 
 echo "== provera spiska paketa (svaki mora da postoji u trixie)"
@@ -77,7 +71,8 @@ echo "== provera: GUI, servis i ispravke u slici"
 [ -f chroot/opt/cloudandbear-gui/CloudAndBear.Desktop ] || { echo "GUI nije u slici"; exit 1; }
 [ -L chroot/etc/systemd/system/multi-user.target.wants/cloudandbear-gui.service ] || { echo "servis cloudandbear-gui nije uključen"; exit 1; }
 grep -q '^cloudandbear:' chroot/etc/passwd || { echo "nalog cloudandbear ne postoji u slici (hook 0200 nije izvršio systemd-sysusers)"; exit 1; }
-[ -f chroot/etc/pam.d/cloudandbear-gui ] && [ -f chroot/etc/polkit-1/rules.d/49-cloudandbear-gui.rules ] || { echo "nema PAM ili polkit pravila za GUI u slici"; exit 1; }
+[ -f chroot/etc/pam.d/cloudandbear-gui ] && [ -f chroot/usr/share/polkit-1/rules.d/49-cloudandbear-gui.rules ] || { echo "nema PAM ili polkit pravila za GUI u slici"; exit 1; }
+grep -q '^Package: cloudandbear-desktop$' chroot/var/lib/dpkg/status || { echo "paket cloudandbear-desktop nije instaliran u slici"; exit 1; }
 [ -f chroot/usr/share/cloudandbear/debian.sources ] || { echo "nema debian.sources u slici"; exit 1; }
 grep -q '^CODESET="Lat2"' chroot/etc/default/console-setup || { echo "console-setup nije naš (Lat2)"; exit 1; }
 [ -f chroot/etc/default/grub.d/cloudandbear.cfg ] || { echo "nema grub.d/cloudandbear.cfg"; exit 1; }

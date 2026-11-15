@@ -1,0 +1,55 @@
+#!/bin/sh
+# postinst paketa cloudandbear-desktop
+set -e
+
+case "$1" in
+configure)
+    # nalog bez prijave i lozinke (grupe video, input, render, docker); sysusers se na pokrenutom sistemu ne izvršava sam
+    if command -v systemd-sysusers > /dev/null 2>&1; then
+        systemd-sysusers /usr/lib/sysusers.d/cloudandbear.conf
+    fi
+
+    # Ako je GUI ranije postavljen rukom (gui/deploy/install.sh), te kopije su u /etc i zasenčile bi paketne iz /usr.
+    # Uklanjaju se samo prave datoteke (ne veze), a uključenost servisa se prenosi na paketnu jedinicu.
+    reenable=
+    legacy_unit=/etc/systemd/system/cloudandbear-gui.service
+    legacy_wants=/etc/systemd/system/multi-user.target.wants/cloudandbear-gui.service
+    if [ -f "$legacy_unit" ] && [ ! -L "$legacy_unit" ]; then
+        rm -f "$legacy_unit"
+        if [ -L "$legacy_wants" ]; then
+            rm -f "$legacy_wants"
+            reenable=1
+        fi
+    fi
+    if [ -f /etc/polkit-1/rules.d/49-cloudandbear-gui.rules ]; then
+        rm -f /etc/polkit-1/rules.d/49-cloudandbear-gui.rules
+    fi
+
+    # uključuje se samo pri prvoj instalaciji (ili prenosom sa ručnog postavljanja); ko je servis kasnije isključio,
+    # nadogradnja ga ne vraća
+    if [ -z "$2" ] || [ -n "$reenable" ]; then
+        systemctl enable cloudandbear-gui.service > /dev/null 2>&1 || true
+    fi
+
+    # Atomski "systemctl restart" ostavlja GUI zaglavljen pre pokretanja (OnSuccess= vraća prijavu na tty1 baš kad se on
+    # pokreće, pa čeka terminal): zato stop, pauza, start (proveren: 12 od 12 pokretanja, a restart 0 od 6).
+    restart_gui() {
+        systemctl stop cloudandbear-gui.service || true
+        sleep 1
+        systemctl reset-failed cloudandbear-gui.service 2> /dev/null || true
+        systemctl start cloudandbear-gui.service || true
+    }
+
+    # u chroot-u pri izgradnji slike systemd ne radi, pa se ništa ne pokreće
+    if [ -d /run/systemd/system ]; then
+        systemctl daemon-reload
+        if [ -z "$2" ] || [ -n "$reenable" ]; then
+            restart_gui   # prva instalacija: pokreni (ili ponovo pokreni ručno postavljen)
+        elif systemctl is-active --quiet cloudandbear-gui.service; then
+            restart_gui   # nadogradnja: samo ako već radi
+        fi
+    fi
+    ;;
+esac
+
+exit 0
