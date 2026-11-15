@@ -1,6 +1,7 @@
 name: ISO
 
-# Izgrađuje CloudAndBear (Debian 13) live ISO pomoću live-build u Debian kontejneru (debian/build.sh) i proverava da u slici nema GUI-ja.
+# Izgrađuje CloudAndBear (Debian 13) live ISO pomoću live-build u Debian kontejneru (debian/build.sh): prvo objavi tvoj GUI (dotnet publish),
+# pa ga ugradi u sliku, i proverava da u slici nema nikakvog drugog GUI-ja.
 # Pokreće se samo ručno. ISO je artefakt pokretanja (7 dana); sa opcijom "objavi" ide i u izdanje iso-DATUM privatnog repoa (ISO je ispod 2 GiB).
 
 on:
@@ -24,19 +25,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: objavi GUI (CloudAndBear.Desktop, linux-x64, sa .NET runtime-om)
+        run: dotnet publish gui/CloudAndBear.Desktop -c Release -r linux-x64 --self-contained -o gui/publish
+
       - name: izgradi ISO (live-build u Debian 13 kontejneru)
         run: |
           set -o pipefail   # bez ovoga tee krije grešku izgradnje
           mkdir -p out
-          docker run --rm --privileged -v "$PWD/debian:/src:ro" -v "$PWD/out:/out" debian:trixie bash /src/build.sh 2>&1 | tee out/build-console.log
+          docker run --rm --privileged -v "$PWD/debian:/src:ro" -v "$PWD/gui:/gui:ro" -v "$PWD/out:/out" debian:trixie bash /src/build.sh 2>&1 | tee out/build-console.log
           ls -la out
 
-      - name: provera da u slici nema GUI-ja
+      - name: provera da u slici nema tuđeg GUI-ja
         run: |
-          # nikakvih drugih GUI-a: nema desktop okruženja, prozorskog sistema, pretraživača ni grafičkog instalatera
-          bad=$(grep -E '^(xorg|xserver|x11-|xwayland|wayland|weston|sway|gnome|kde|plasma|xfce|lxde|lxqt|mate-|cinnamon|budgie|gdm3?|lightdm|sddm|xdm|firefox|chromium|epiphany|libgtk|libqt|qt[56]|gtk|libwayland|mesa|libgl1|calamares|task-.*desktop|desktop-base)' out/cloudandbear-debian.packages.txt || true)
+          # nikakvih drugih GUI-a: nema desktop okruženja, prozorskog sistema, pretraživača ni grafičkog instalatera.
+          # Dozvoljene su samo biblioteke koje tvoj GUI traži (libgl1, Mesa, libwayland-client, libx11-6): to nisu serveri ni okruženja.
+          bad=$(grep -E '^(xorg|xserver|x11-|xwayland|wayland|weston|sway|gnome|kde|plasma|xfce|lxde|lxqt|mate-|cinnamon|budgie|gdm3?|lightdm|sddm|xdm|firefox|chromium|epiphany|libgtk|libqt|qt[56]|gtk|calamares|task-.*desktop|desktop-base)' out/cloudandbear-debian.packages.txt || true)
           if [ -n "$bad" ]; then echo "u slici ima GUI paketa:"; echo "$bad"; exit 1; fi
-          echo "paketa u slici: $(wc -l < out/cloudandbear-debian.packages.txt), GUI paketa: 0"
+          echo "paketa u slici: $(wc -l < out/cloudandbear-debian.packages.txt), tuđih GUI paketa: 0"
 
       - uses: actions/upload-artifact@v4
         with:

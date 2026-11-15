@@ -1956,4 +1956,4 @@ Za razvoj (ponovna objava dok je servis uključen): `sudo systemctl restart clou
 1. Tastatura za srpsku latinicu (`č ć š đ ž`) i tastatura/miš priključeni u hodu.
 2. Običan nalog umesto `root`-a za GUI (polkit za restart i isključenje; grupa `docker` za Docker; kubeconfig tog korisnika).
 3. Paket `cloudandbear-desktop` (`.deb`) sa zavisnostima iz poglavlja 3, pa u sopstveni apt repozitorijum i u sliku.
-4. Nova slika: GUI, biblioteke i servis ugrađeni, uz ispravke instaliranog sistema; `nmcli`, `docker` i `kubectl` moraju biti u slici; prilagoditi proveru GUI paketa u workflow-u.
+4. Nova slika (pripremljeno u `debian/` i `iso.yml`, čeka izgradnju na GitHub-u): GUI i servis ugrađeni (`/opt/cloudandbear-gui`, servis uključen), 9 biblioteka i `alsa-utils`, preseed instalatera (ime `cloudandbear`, `Europe/Belgrade`, korisnik u `sudo` i `docker`, apt izvori), konzolni font sa `č ć š đ ž`, CloudAndBear naslov i pozadina menija za dizanje, GRUB ime `CloudAndBear`; `nmcli`, `docker` i `kubectl` već su u slici. Posle izgradnje proveriti u VM-u, pa na laptopu. Još nije u slici: PowerShell sa oh-my-posh temom.

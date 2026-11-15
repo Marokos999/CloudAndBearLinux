@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CloudAndBear: pozadina menija za dizanje (live-build je pretvara u PNG: 800x600 za GRUB, 640x480 za syslinux).
+     Odnos 4:3 mora ostati, a font je DejaVu Sans jer se slika pravi u kontejneru koji ima samo njega. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#101820"/>
+  <rect y="0" width="800" height="6" fill="#9ecbff"/>
+  <text x="400" y="190" font-family="DejaVu Sans" font-size="104" font-weight="bold" fill="#9ecbff" text-anchor="middle">C&amp;B</text>
+  <text x="400" y="250" font-family="DejaVu Sans" font-size="34" fill="#e0e0e0" text-anchor="middle">CloudAndBear Linux</text>
+  <text x="400" y="284" font-family="DejaVu Sans" font-size="18" fill="#8a99a8" text-anchor="middle">zasnovano na Debianu 13</text>
+</svg>

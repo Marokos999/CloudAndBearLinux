@@ -1,0 +1,13 @@
+#!/bin/sh
+# 0200-cloudandbear-gui — uključuje CloudAndBear GUI (izvršava se u chroot-u pri izgradnji)
+# Program i servis kopira build.sh (config/includes.chroot): /opt/cloudandbear-gui i /etc/systemd/system/cloudandbear-gui.service
+set -e
+
+[ -f /opt/cloudandbear-gui/CloudAndBear.Desktop ] || { echo "nema /opt/cloudandbear-gui/CloudAndBear.Desktop: build.sh ga nije kopirao u includes.chroot"; exit 1; }
+[ -f /etc/systemd/system/cloudandbear-gui.service ] || { echo "nema cloudandbear-gui.service u includes.chroot"; exit 1; }
+
+# Windows ne čuva pravo izvršavanja, pa se vraća (na Linuxu je već tu)
+chmod 755 /opt/cloudandbear-gui/CloudAndBear.Desktop
+
+# servis zauzima tty1 umesto konzolne prijave, a prijava se vraća pri izlasku (Ctrl+Alt+Q) i pri padu
+systemctl enable cloudandbear-gui.service

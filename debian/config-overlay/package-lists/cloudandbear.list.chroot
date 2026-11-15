@@ -1,5 +1,5 @@
-# CloudAndBear (Debian 13): samo konzola, nikakvog GUI-ja. Jedan paket po liniji.
-# Pravilo: nema desktop okruženja, X11, menadžera prijave, pretraživača ni grafičkog instalatera; GUI dodaje samo tvoj paket.
+# CloudAndBear (Debian 13): konzola i jedan GUI, tvoj (CloudAndBear.Desktop). Jedan paket po liniji.
+# Pravilo: nema desktop okruženja, X11, menadžera prijave, pretraživača ni grafičkog instalatera.
 
 # osnova i live sistem
 live-boot
@@ -37,6 +37,21 @@ firmware-sof-signed
 firmware-nvidia-gsp
 intel-microcode
 amd64-microcode
+
+# biblioteke za tvoj GUI (Avalonia crta direktno na ekran preko DRM/KMS i libinput-a, bez X11/Wayland servera;
+# libgl1 i Mesa vuku libwayland-client i libx11-6 samo kao biblioteke)
+libgl1
+libfontconfig1
+libdrm2
+libegl1
+libgbm1
+libinput10
+libevdev2
+libgl1-mesa-dri
+libegl-mesa0
+
+# zvuk (alsamixer, aplay)
+alsa-utils
 
 # mreža (nmtui/nmcli za Wi-Fi iz konzole)
 network-manager
