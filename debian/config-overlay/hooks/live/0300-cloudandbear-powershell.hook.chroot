@@ -1,0 +1,39 @@
+#!/bin/sh
+# 0300-cloudandbear-powershell — PowerShell (Microsoftov apt repozitorijum) i oh-my-posh u slici (izvršava se u chroot-u pri izgradnji)
+# Tema i profil su u slici već (includes.chroot: /usr/share/cloudandbear/oh-my-posh, /etc/skel/.config/powershell).
+#
+# Ovo je dodatak, ne temelj: ako preuzimanje ne uspe, izgradnja se NE prekida (slika radi i bez toga, a profil
+# preskače oh-my-posh kad ga nema), ali se UPOZORENJE vidi u logu izgradnje, a build.sh ga ponavlja na kraju.
+OMP_VERSION="v32.1.0"   # oh-my-posh izdanje: promeni ovde kad hoćeš noviju verziju
+
+warn() { echo "UPOZORENJE [0300 powershell]: $*" >&2; }
+
+# teme i profil moraju da budu čitljivi svim korisnicima, bez obzira na prava fajlova u mestu odakle je slika građena
+chmod -R a+rX /usr/share/cloudandbear /etc/skel/.config 2>/dev/null || warn "prava nad temama i profilom nisu postavljena"
+
+tmp=$(mktemp -d)
+cd "$tmp" || exit 0
+
+# PowerShell: Microsoft objavljuje repozitorijum (izvor i ključ) kao paket za svaku verziju Debiana
+if wget -q https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb && dpkg -i packages-microsoft-prod.deb; then
+  if apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq powershell; then
+    echo "powershell: $(dpkg-query -W -f='${Version}' powershell)"
+  else
+    warn "paket powershell nije instaliran"
+  fi
+else
+  warn "Microsoftov repozitorijum nije dodat (nema mreže ili je adresa promenjena)"
+fi
+
+# oh-my-posh: izvršni fajl iz GitHub izdanja, provera sa checksums.txt iz istog izdanja
+base="https://github.com/JanDeDobbeleer/oh-my-posh/releases/download/$OMP_VERSION"
+if wget -q "$base/posh-linux-amd64" "$base/checksums.txt" && grep ' posh-linux-amd64$' checksums.txt | sha256sum -c -; then
+  install -m 755 posh-linux-amd64 /usr/local/bin/oh-my-posh
+  echo "oh-my-posh: $OMP_VERSION"
+else
+  warn "oh-my-posh $OMP_VERSION nije instaliran (preuzimanje ili provera kontrolnog zbira nije uspela)"
+fi
+
+cd /
+rm -rf "$tmp"
+exit 0

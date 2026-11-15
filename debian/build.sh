@@ -74,6 +74,9 @@ echo "== provera: GUI, servis i ispravke u slici"
 [ -f chroot/usr/share/cloudandbear/debian.sources ] || { echo "nema debian.sources u slici"; exit 1; }
 grep -q '^CODESET="Lat2"' chroot/etc/default/console-setup || { echo "console-setup nije naš (Lat2)"; exit 1; }
 [ -f chroot/etc/default/grub.d/cloudandbear.cfg ] || { echo "nema grub.d/cloudandbear.cfg"; exit 1; }
+# PowerShell i oh-my-posh su dodatak (hook 0300 ne prekida izgradnju), pa se samo javlja da li su u slici
+[ -e chroot/usr/bin/pwsh ] && echo "pwsh: u slici" || echo "UPOZORENJE: pwsh NIJE u slici (vidi UPOZORENJE [0300 powershell] u logu)"
+[ -x chroot/usr/local/bin/oh-my-posh ] && echo "oh-my-posh: u slici" || echo "UPOZORENJE: oh-my-posh NIJE u slici (vidi UPOZORENJE [0300 powershell] u logu)"
 # preseed mora da bude u initrd-u instalatera, inače se instalacija vraća na "debian" i bez sudo grupe
 if ! find binary/install -name 'initrd.gz' -exec sh -c 'zcat "$1" | cpio -t 2> /dev/null | grep -qE "^(\./)?preseed\.cfg$"' _ {} \; -print | grep -q .; then
   echo "UPOZORENJE: preseed.cfg nije nađen u initrd-u instalatera (binary/install)"
