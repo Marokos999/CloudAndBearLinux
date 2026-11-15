@@ -15,6 +15,9 @@ ID_LIKE=debian
 HOME_URL="https://github.com/Marokos999/CloudAndBearLinux"
 BUG_REPORT_URL="https://github.com/Marokos999/CloudAndBearLinux/issues"
 EOF
+# u slici je /etc/os-release običan fajl (ne veza), pa se zamenjuje vezom na naš /usr/lib/os-release
+rm -f /etc/os-release
+ln -s ../usr/lib/os-release /etc/os-release
 
 cat > /etc/issue << 'EOF'
 CloudAndBear Linux 0.1 (zasnovano na Debianu 13) \n \l
