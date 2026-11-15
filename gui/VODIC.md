@@ -19,7 +19,7 @@ Provera je rađena 2026-11-15 na PC-u (Windows) i u VirtualBox VM-u sa našim li
 | Nije proveravano ili ne radi | Zašto |
 |---|---|
 | tastatura laptopa, srpski raspored | samo US raspored, i to u VM-u; vidi „Tastatura" |
-| miš / touchpad | VM je radio bez miša; `libinput` pointer kod Avalonie postoji, ali nije probano |
+| touchpad laptopa (tap-to-click, skrol sa dva prsta) | virtuelni miš u VM-u radi (poglavlje „Miš i touchpad"), pravi touchpad nije probán |
 | hibridna grafika laptopa (Intel + NVIDIA) | u VM-u je jedna grafika, i to softverska; birač kartice (`--card=`) nije probano |
 | `dotnet run` (prozor na PC-u) | nisam ga pokretala, jer bi otvorio prozor na tvom ekranu dok radiš |
 | `Ctrl+C` kroz pravi `ssh -t` | proveren ekvivalent (`SIGINT` na proces u prvom planu) |
@@ -635,6 +635,228 @@ Slušanje ide na `TopLevel` jer na uređaju fokus ne mora biti na tvom pogledu.
 - dok GUI radi, `Alt+F1..F6` (prebacivanje terminala) i `Ctrl+Alt+Del` ne rade (terminal u `K_OFF`); spas je SSH
 - ako se aplikacija ubije sa `SIGKILL` ili sruši, tastatura konzole ostaje isključena: iz SSH-a `sudo kbd_mode -u -C /dev/tty0` (nije probano)
 - `Alt`/`Ctrl` kombinacije ne daju tekst (namerno); `Tab` i `Enter` ne šalju tekst, samo `KeyDown`
+## Miš i touchpad (sopstvena obrada preko libinput-a)
+
+Prvo pokretanje na laptopu je pokazalo da **miš i touchpad ne rade**. Uzrok je u Avaloniji: njen DRM unos uvozi iz `libinput` samo *apsolutno* pozicioniranje (ekrani osetljivi na dodir), dugmad i skrol, a funkcije za *relativno* pomeranje (`libinput_event_pointer_get_dx` / `_dy`), kojim rade miš i touchpad, nema. Provereno: u VM-u sam napravila virtuelni miš (`/dev/uinput`), `libinput` u aplikaciji je čitao njegove događaje, a Avalonia ih nikad nije prosledila.
+
+Zato pišemo i pokazivač sami (isto kao tastaturu), i **menjamo** Avalonijin `LibInputBackend` našim. Cena: ekrani osetljivi na dodir tada ne rade (laptop ga nema).
+
+### 1. Novi fajl `PointerInput.cs`
+
+(u istom folderu kao `Program.cs`)
+
+```csharp
+using System.Runtime.InteropServices;
+using Avalonia;
+using Avalonia.Input;
+using Avalonia.Input.Raw;
+using Avalonia.LinuxFramebuffer.Input;
+using Avalonia.Threading;
+
+namespace CloudAndBear.Desktop;
+
+// Miš i touchpad preko libinput-a. Avalonijin LibInputBackend zna samo apsolutne uređaje (ekrane osetljive na dodir),
+// a relativno pomeranje (miš, touchpad) ne obrađuje, pa to radimo sami.
+public sealed class PointerInput
+{
+    private const string LibInput = "libinput.so.10";
+
+    [DllImport(LibInput)] private static extern IntPtr libinput_path_create_context(IntPtr iface, IntPtr userData);
+    [DllImport(LibInput)] private static extern IntPtr libinput_path_add_device(IntPtr li, string path);
+    [DllImport(LibInput)] private static extern int libinput_device_config_tap_set_enabled(IntPtr device, int enable);
+    [DllImport(LibInput)] private static extern int libinput_get_fd(IntPtr li);
+    [DllImport(LibInput)] private static extern int libinput_dispatch(IntPtr li);
+    [DllImport(LibInput)] private static extern IntPtr libinput_get_event(IntPtr li);
+    [DllImport(LibInput)] private static extern int libinput_event_get_type(IntPtr ev);
+    [DllImport(LibInput)] private static extern IntPtr libinput_event_get_pointer_event(IntPtr ev);
+    [DllImport(LibInput)] private static extern double libinput_event_pointer_get_dx(IntPtr p);
+    [DllImport(LibInput)] private static extern double libinput_event_pointer_get_dy(IntPtr p);
+    [DllImport(LibInput)] private static extern uint libinput_event_pointer_get_button(IntPtr p);
+    [DllImport(LibInput)] private static extern int libinput_event_pointer_get_button_state(IntPtr p);
+    [DllImport(LibInput)] private static extern int libinput_event_pointer_has_axis(IntPtr p, int axis);
+    [DllImport(LibInput)] private static extern double libinput_event_pointer_get_scroll_value(IntPtr p, int axis);
+    [DllImport(LibInput)] private static extern double libinput_event_pointer_get_scroll_value_v120(IntPtr p, int axis);
+    [DllImport(LibInput)] private static extern void libinput_event_destroy(IntPtr ev);
+
+    [DllImport("libc")] private static extern int open(string path, int flags);
+    [DllImport("libc")] private static extern int close(int fd);
+    [DllImport("libc", SetLastError = true)] private static extern int poll(ref PollFd fds, ulong count, int timeoutMs);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PollFd
+    {
+        public int Fd;
+        public short Events;
+        public short Revents;
+    }
+
+    private delegate int OpenRestricted(IntPtr path, int flags, IntPtr userData);
+    private delegate void CloseRestricted(int fd, IntPtr userData);
+
+    // moraju ostati u poljima, inače ih sakupljač smeća ukloni dok ih libinput još poziva
+    private static readonly OpenRestricted OpenCallback = (path, flags, _) => open(Marshal.PtrToStringUTF8(path)!, flags);
+    private static readonly CloseRestricted CloseCallback = (fd, _) => close(fd);
+
+    private readonly MouseDevice _mouse = new(new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true));
+    private IScreenInfoProvider? _info;
+    private Action<RawInputEventArgs>? _onInput;
+    private IInputRoot? _root;
+    private Point _pos;
+    private RawInputModifiers _buttons;
+
+    public void Initialize(IScreenInfoProvider info, Action<RawInputEventArgs> onInput)
+    {
+        _info = info;
+        _onInput = onInput;
+        _pos = new Point(info.ScaledSize.Width / 2, info.ScaledSize.Height / 2);
+        new Thread(Run) { IsBackground = true }.Start();
+    }
+
+    public void SetInputRoot(IInputRoot root) => _root = root;
+
+    private void Run()
+    {
+        var iface = Marshal.AllocHGlobal(2 * IntPtr.Size);   // struct libinput_interface { open_restricted, close_restricted }
+        Marshal.WriteIntPtr(iface, 0, Marshal.GetFunctionPointerForDelegate(OpenCallback));
+        Marshal.WriteIntPtr(iface, IntPtr.Size, Marshal.GetFunctionPointerForDelegate(CloseCallback));
+
+        var li = libinput_path_create_context(iface, IntPtr.Zero);
+        if (li == IntPtr.Zero) return;
+
+        foreach (var path in Directory.GetFiles("/dev/input", "event*"))
+        {
+            var device = libinput_path_add_device(li, path);
+            if (device != IntPtr.Zero) libinput_device_config_tap_set_enabled(device, 1);   // dodir touchpada je klik
+        }
+
+        var fd = new PollFd { Fd = libinput_get_fd(li), Events = 1 };   // POLLIN
+        while (true)
+        {
+            if (poll(ref fd, 1, -1) < 0 && Marshal.GetLastPInvokeError() != 4) break;   // 4 = EINTR, nastavi
+
+            libinput_dispatch(li);
+            IntPtr ev;
+            while ((ev = libinput_get_event(li)) != IntPtr.Zero)
+            {
+                OnEvent(ev);
+                libinput_event_destroy(ev);
+            }
+        }
+    }
+
+    private void OnEvent(IntPtr ev)
+    {
+        var type = libinput_event_get_type(ev);
+        if (type is < 400 or > 406) return;   // samo događaji pokazivača
+
+        var p = libinput_event_get_pointer_event(ev);
+        switch (type)
+        {
+            case 400:   // POINTER_MOTION: relativno pomeranje
+                Move(libinput_event_pointer_get_dx(p), libinput_event_pointer_get_dy(p));
+                break;
+            case 402:   // POINTER_BUTTON
+                Button(libinput_event_pointer_get_button(p), libinput_event_pointer_get_button_state(p) == 1);
+                break;
+            case 404 or 405 or 406:   // točkić miša, skrol sa dva prsta
+                Scroll(p, type);
+                break;
+        }
+    }
+
+    private void Move(double dx, double dy)
+    {
+        var size = _info!.ScaledSize;
+        _pos = new Point(Math.Clamp(_pos.X + dx, 0, size.Width - 1), Math.Clamp(_pos.Y + dy, 0, size.Height - 1));
+        Send(RawPointerEventType.Move);
+    }
+
+    private void Button(uint button, bool down)
+    {
+        var (type, flag) = button switch
+        {
+            0x110 => (down ? RawPointerEventType.LeftButtonDown : RawPointerEventType.LeftButtonUp, RawInputModifiers.LeftMouseButton),
+            0x111 => (down ? RawPointerEventType.RightButtonDown : RawPointerEventType.RightButtonUp, RawInputModifiers.RightMouseButton),
+            0x112 => (down ? RawPointerEventType.MiddleButtonDown : RawPointerEventType.MiddleButtonUp, RawInputModifiers.MiddleMouseButton),
+            _ => (RawPointerEventType.Move, RawInputModifiers.None)
+        };
+        if (flag == RawInputModifiers.None) return;
+
+        _buttons = down ? _buttons | flag : _buttons & ~flag;
+        Send(type);
+    }
+
+    private void Scroll(IntPtr p, int type)
+    {
+        double Value(int axis) =>
+            libinput_event_pointer_has_axis(p, axis) == 0 ? 0
+            : type == 404 ? libinput_event_pointer_get_scroll_value_v120(p, axis) / 120.0   // točkić: 1 = jedan klik
+            : libinput_event_pointer_get_scroll_value(p, axis) / 15.0;                      // dva prsta: pikseli
+
+        var root = _root;
+        var onInput = _onInput;
+        if (root is null || onInput is null) return;
+
+        // libinput: pozitivno = nadole/udesno; Avalonia: pozitivno = nagore/ulevo
+        var delta = new Vector(-Value(1), -Value(0));
+        var time = (ulong)Environment.TickCount64;
+        var pos = _pos;
+        var buttons = _buttons;
+        Dispatcher.UIThread.Post(() => onInput(new RawMouseWheelEventArgs(_mouse, time, root, pos, delta, buttons)));
+    }
+
+    private void Send(RawPointerEventType type)
+    {
+        var root = _root;
+        var onInput = _onInput;
+        if (root is null || onInput is null) return;
+
+        var time = (ulong)Environment.TickCount64;
+        var pos = _pos;
+        var buttons = _buttons;
+        Dispatcher.UIThread.Post(() => onInput(new RawPointerEventArgs(_mouse, time, root, type, pos, buttons)));
+    }
+}
+```
+
+### 2. `KeyboardInputBackend.cs`: dve izmene
+
+Obriši red:
+
+```csharp
+using Avalonia.LinuxFramebuffer.Input.LibInput;
+```
+
+i zameni polje `_pointer`:
+
+```csharp
+    private readonly PointerInput _pointer = new();
+```
+
+(ostali redovi koji pozivaju `_pointer.Initialize(...)` i `_pointer.SetInputRoot(...)` ostaju isti.)
+
+### 3. Probni prikaz klika i točkića u `MainView.axaml.cs` (privremeno)
+
+U konstruktor, iznad `AttachedToVisualTree`:
+
+```csharp
+        PointerPressed += (_, e) => Info.Text = $"klik: {e.GetCurrentPoint(this).Properties.PointerUpdateKind}";
+        PointerWheelChanged += (_, e) => Info.Text = $"točkić: {e.Delta.Y}";
+```
+
+### Šta je provereno (VM, virtuelni miš, 2026-11-15)
+
+- pomeranje: `miš: 725, 443` pa `738, 449`
+- levi klik: `klik: LeftButtonPressed`
+- točkić: `točkić: -1` (nadole)
+- Avalonia **ne crta kursor miša** u DRM režimu (na slikama ga nema): kad dodaš prave ekrane, crtaj sopstveni kursor
+
+### Šta nije provereno
+
+- **pravi touchpad** laptopa: tap-to-click je uključen u kodu (`libinput_device_config_tap_set_enabled`), a skrol sa dva prsta ima konverziju u piksele (`/ 15`) koja je pogođena napamet
+- desni i srednji taster, horizontalni skrol
+- brzina kursora (podrazumevano ubrzanje `libinput`-a), prirodni skrol
+- miš priključen u hodu (uređaji se čitaju samo pri pokretanju)
 ## Ako ne radi
 
 | Šta vidiš | Šta znači / šta raditi |
@@ -645,7 +867,7 @@ Slušanje ide na `TopLevel` jer na uređaju fokus ne mora biti na tvom pogledu.
 | crn ekran, a program radi | pogrešna kartica, vidi gore (`--card=`) |
 | program odmah izađe bez poruke | pokreni sa `ssh -t $L "sudo ~/cab-gui/CloudAndBear.Desktop --drm"` i pošalji ceo ispis |
 | tekst se ne vidi, a pozadina je tu | font nije učitan: proveri da `.WithInterFont()` postoji u `BuildAvaloniaApp` |
-| miš (touchpad) ne reaguje | nije provereno; javi, pa gledamo da li `libinput` vidi uređaj |
+| miš ili touchpad ne reaguje | bez poglavlja „Miš i touchpad" Avalonia ne obrađuje relativno pomeranje; sa njim proveri `ls /dev/input/event*` i da je aplikacija pokrenuta sa `sudo` |
 | tasteri se i dalje pojavljuju u konzoli | `SilenceTerminal` nije uspeo (nema `/dev/tty0` ili nije pokrenuto sa `sudo`) |
 | tastatura konzole ne radi posle pada aplikacije | iz SSH-a: `sudo kbd_mode -u -C /dev/tty0` (nije probano) |
 

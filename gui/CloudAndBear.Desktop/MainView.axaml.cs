@@ -21,6 +21,10 @@ public partial class MainView : UserControl
             Info.Text = $"miš: {p.X:0}, {p.Y:0}";
         };
 
+        PointerPressed += (_, e) => Info.Text =
+            $"klik: {e.GetCurrentPoint(this).Properties.PointerUpdateKind}";
+        PointerWheelChanged += (_, e) => Info.Text = $"točkić: {e.Delta.Y}";
+
         AttachedToVisualTree += (_, _) =>
         {
             if (TopLevel.GetTopLevel(this) is not { } top) return;

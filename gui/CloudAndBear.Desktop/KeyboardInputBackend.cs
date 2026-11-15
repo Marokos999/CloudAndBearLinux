@@ -2,7 +2,6 @@ using System.Runtime.InteropServices;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.LinuxFramebuffer.Input;
-using Avalonia.LinuxFramebuffer.Input.LibInput;
 using Avalonia.Threading;
 using Microsoft.Win32.SafeHandles;
 
@@ -12,7 +11,7 @@ namespace CloudAndBear.Desktop;
 // (LibInputBackend tastaturu ne obrađuje). Raspored tastature je za sada samo US.
 public sealed class KeyboardInputBackend : IInputBackend
 {
-    private readonly LibInputBackend _pointer = new();
+    private readonly PointerInput _pointer = new();
     private readonly KeyboardDevice _keyboard = new();
     private Action<RawInputEventArgs>? _onInput;
     private IInputRoot? _root;
